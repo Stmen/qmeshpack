@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <iostream>
 #include "util.h"
-#include "veclib/veclib.h"
 #include "Exception.h"
 using namespace std;
 
@@ -99,7 +98,7 @@ QImage Image::toQImage() const
     assert(_maxColor >= _minColor);
     QImage image(_width, _height, QImage::Format_RGB888);
 
-	float colorStep = (_maxColor - _minColor) / 256.;
+	float colorStep = 255. / (_maxColor - _minColor);
 
     for (unsigned x = 0; x < _width; x++)
     {

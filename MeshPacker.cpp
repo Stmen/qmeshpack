@@ -5,16 +5,9 @@
 #include <future>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-MeshPacker::MeshPacker(QVector3D size, QObject *parent) :
-	QThread(parent), _geometry(size), _meshes(0)
+MeshPacker::MeshPacker(MeshFilesModel &nodes, QObject *parent) :
+	QThread(parent), _nodes(nodes)
 {
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void MeshPacker::setMeshList(const MeshList* meshes)
-{
-	delete _meshes;
-	_meshes = meshes;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -24,12 +17,11 @@ void MeshPacker::setMeshList(const MeshList* meshes)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 size_t MeshPacker::maxProgress() const
 {
-	assert(_meshes);
 	size_t progress = 0;
-	for (unsigned i = 0; i < _meshes->size(); i++)
+	for (unsigned i = 0; i < _nodes.numNodes(); i++)
 	{
-		RenderedMesh* rmesh = _meshes->at(i);
-		QVector3D max = _geometry - rmesh->getMesh()->getGeometry();
+		Node* node = _nodes.getNode(i);
+		QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 		progress += max.x() * max.y();
 	}
 	return progress;
@@ -38,17 +30,16 @@ size_t MeshPacker::maxProgress() const
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MeshPacker::run()
 {
-	_results.clear();
-	Image base(_geometry.x(), _geometry.y(), /* clear color = */ 0.);
+	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y(), /* clear color = */ 0.);
 	std::atomic<size_t> progress_atom;
 	progress_atom = 0;
-	for (size_t i = 0; i < _meshes->size(); i++)
+	for (size_t i = 0; i < _nodes.numNodes(); i++)
 	{
-		RenderedMesh* rendered_mesh = _meshes->at(i);
-		emit report(QString("processing Mesh \"%1\"").arg(rendered_mesh->getMesh()->getName()));
-		QVector3D max = _geometry - rendered_mesh->getMesh()->getGeometry();
+		Node* node = _nodes.getNode(i);
+		emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()));
+		QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 
-		Image::ColorType best_z = base.computeMinZ(0, 0, *(rendered_mesh->getBottom()));
+		Image::ColorType best_z = base.computeMinZ(0, 0, *(node->getBottom()));
 		unsigned best_x = 0;
 		unsigned best_y = 0;
 
@@ -64,7 +55,7 @@ void MeshPacker::run()
 				size_t progress = atomic_fetch_add(&progress_atom, (size_t)1);
 				emit reportProgress(progress);
 
-				Image::ColorType z = base.computeMinZ(x, y, *(rendered_mesh->getBottom()));
+				Image::ColorType z = base.computeMinZ(x, y, *(node->getBottom()));
 				#pragma omp critical
 				{
 					if (z < best_z)
@@ -76,9 +67,9 @@ void MeshPacker::run()
 				}
 			}
 		}
-		base.insertAt(best_x, best_y, best_z, *(rendered_mesh->getTop()));
-		QVector3D result = QVector3D(best_x, best_y, best_z) + rendered_mesh->getMesh()->getMin();
-		_results.push_back(result);
+		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
+		QVector3D best = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin();
+		node->setPos(best);
 	}
 
 	emit processingDone();

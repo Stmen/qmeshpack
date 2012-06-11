@@ -24,9 +24,11 @@
 #include <QToolBar>
 #include <QTextEdit>
 #include <QString>
+#include "Node.h"
 #include "MeshFilesModel.h"
 #include "vectorinputdialog.h"
 #include "MeshPacker.h"
+#include "PackBox.h"
 
 class MainWindow : public QMainWindow
 {
@@ -36,6 +38,8 @@ class MainWindow : public QMainWindow
 	QToolBar*       _toolMain;
 	MeshPacker*		_threadPacker;
 	QTextEdit*		_console;
+	QWidget*		_centralWidget;
+
 
 	// actions
     QAction*			_actExit;
@@ -63,12 +67,12 @@ public slots:
 	void dialogAddMesh();
 	void dialogSetDefaultSamplesPerPixel();
 	void addMeshByName(const char* name) { _modelMeshFiles->addMesh(name); }
-    void processMeshes();
+    void processNodes();
     void aboutThisApp();
-    void meshSelected(const QModelIndex& index);
+    void nodeSelected(const QModelIndex& index);
     void closeEvent(QCloseEvent *event);
-	void viewMeshContextMenu(const QPoint &pos);
-	void processMeshesDone();
+	void viewNodeContextMenu(const QPoint &pos);
+	void processNodesDone();
 	void consolePrint(QString str, unsigned level = 0);
 	void mainShowDefault();
 	void mainShowResults();
@@ -79,7 +83,7 @@ private:
 
 private slots:
 
-	void removeCurrentMesh();
+	void removeCurrentNode();
 	void transformCurrentMesh();
 	void scaleCurrentMesh();
 

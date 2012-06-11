@@ -10,9 +10,9 @@
 #include <cstdlib>
 #include <iostream>
 #include <omp.h>
-#include "veclib/vecprint.h"
 #include "image.h"
 #include "mesh.h"
+#include "GLView.h"
 #include "Exception.h"
 
 using namespace std;
@@ -87,17 +87,16 @@ Image* test2()
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 MainWindow::MainWindow() : QMainWindow()
 {
-    QSettings settings("Konstantin", APP_NAME);
+	QSettings settings("Konstantin", APP_NAME);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
 	_defaultSamplesPerPixel = qvariant_cast<unsigned>(settings.value("samples_per_pixel", 10));
 
 	createMeshList();
 
-	// creating Mesh Packer
-	QVector3D boxGeometry = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
-	_threadPacker = new MeshPacker(boxGeometry, this);
-	connect(_threadPacker, SIGNAL(processingDone()), this, SLOT(processMeshesDone()));
+	// creating Mesh Packer	
+	_threadPacker = new MeshPacker(*_modelMeshFiles, this);
+	connect(_threadPacker, SIGNAL(processingDone()), this, SLOT(processNodesDone()));
 	connect(_threadPacker, SIGNAL(report(QString)), this, SLOT(consolePrint(QString)));
 
 	// create console
@@ -106,6 +105,7 @@ MainWindow::MainWindow() : QMainWindow()
 	_console->setCurrentCharFormat(QTextCharFormat());
 	dockWidget->setWidget(_console);
 	addDockWidget(Qt::BottomDockWidgetArea, dockWidget);
+
 
 	createActions();
 	createMenus();
@@ -120,15 +120,19 @@ MainWindow::~MainWindow()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::createMeshList()
 {
+	QSettings settings("Konstantin", APP_NAME);
+	QVector3D boxGeometry = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
 	// create mesh list
-	_modelMeshFiles = new MeshFilesModel(this);
+	_modelMeshFiles = new MeshFilesModel(boxGeometry, this);
 	_viewMeshFiles = new QTreeView(this);
 	_viewMeshFiles->setModel(_modelMeshFiles);
-	_viewMeshFiles->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
+	//_viewMeshFiles->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
 	_viewMeshFiles->setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(viewMeshContextMenu(const QPoint &)));
-	connect(_viewMeshFiles, SIGNAL(clicked(const QModelIndex &)), this, SLOT(meshSelected(const QModelIndex &)));
-	QDockWidget* dockWidget = new QDockWidget(tr("Mesh list"), this);
+	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(viewNodeContextMenu(const QPoint &)));
+	connect(_viewMeshFiles, SIGNAL(clicked(const QModelIndex &)), this, SLOT(nodeSelected(const QModelIndex &)));
+	QString mname = tr("Mesh list");
+	QDockWidget* dockWidget = new QDockWidget(mname, this);
+	dockWidget->setObjectName(mname);
 	//dockWidget->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Ignored);
 	dockWidget->setWidget(_viewMeshFiles);
 	addDockWidget(Qt::LeftDockWidgetArea, dockWidget);
@@ -152,7 +156,7 @@ void MainWindow::createActions()
 	_actProcess = new QAction(QIcon(":images/images/reddice.png"), tr("&Process"), this);
 	_actProcess->setShortcuts(QKeySequence::Refresh);
 	_actProcess->setStatusTip(tr("Starts combining the Meshes."));
-	connect(_actProcess, SIGNAL(triggered()), this, SLOT(processMeshes()));
+	connect(_actProcess, SIGNAL(triggered()), this, SLOT(processNodes()));
 
 	_actSetBoxGeometry = new QAction(QIcon(), tr("&Set geometry"), this);
 	_actSetBoxGeometry->setStatusTip(tr("Sets the bounding box geometry for the target space."));
@@ -170,7 +174,7 @@ void MainWindow::createActions()
 	_actMeshRemove = new QAction(style->standardIcon(QStyle::SP_DialogCloseButton), tr("&Remove current mesh"), this);
 	_actMeshRemove->setShortcuts(QKeySequence::Delete);
 	_actMeshRemove->setStatusTip(tr("Removes this Mesh"));
-	connect(_actMeshRemove, SIGNAL(triggered()), this, SLOT(removeCurrentMesh()));
+	connect(_actMeshRemove, SIGNAL(triggered()), this, SLOT(removeCurrentNode()));
 
 	_actMeshTranslate = new QAction(QIcon(), tr("&Translate"), this);
 	_actMeshTranslate->setStatusTip(tr("Translate this mesh"));
@@ -224,7 +228,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	QSettings settings("Konstantin", APP_NAME);
 	settings.setValue("geometry", saveGeometry());
 	settings.setValue("windowState", saveState());
-	settings.setValue("box_geometry", _threadPacker->getGeometry());
+	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
 	QMainWindow::closeEvent(event);
 }
 
@@ -257,33 +261,36 @@ void MainWindow::mainShowDefault()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::mainShowResults()
 {
-	const MeshList* meshList = _modelMeshFiles->getMeshList();
-	const std::vector<QVector3D> resultPositions = _threadPacker->getResults();
-	if (not resultPositions.empty())
-	{
-		QTableWidget* tableWidget = new QTableWidget(/* rows = */ resultPositions.size(), /* columns = */ 2);
+	QTableWidget* tableWidget = new QTableWidget(/* rows = */ _modelMeshFiles->numNodes(), /* columns = */ 2);
 
-		for (unsigned i = 0; i < resultPositions.size(); i++)
-		{
-			//QTableWidgetItem *newItem = new QTableWidgetItem(tr("%1").arg((row+1)*(column+1)));
-			tableWidget->setItem(i, 0, new QTableWidgetItem((*meshList)[i]->getMesh()->getName()));
-			QVector3D pos = resultPositions[i];
-			tableWidget->setItem(i, 1, new QTableWidgetItem(QString("(%1, %2, %3)").arg(
-																QString::number(pos.x()),
+	for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
+	{
+		Node* node = _modelMeshFiles->getNode(i);
+		tableWidget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+		tableWidget->setItem(i, 0, new QTableWidgetItem(node->getMesh()->getName()));
+		QVector3D pos = node->getPos();
+		tableWidget->setItem(i, 1, new QTableWidgetItem(
+								 QString("(%1, %2, %3)").arg(	QString::number(pos.x()),
 																QString::number(pos.y()),
 																QString::number(pos.z()))));
 
-		}
-		setCentralWidget(tableWidget);
-	}
-	else
-		setCentralWidget(new QLabel("no results"));
 
+		QWidget* widget = new QWidget();
+		QVBoxLayout* layout = new QVBoxLayout;
+		widget->setLayout(layout);
+
+		layout->addWidget(tableWidget);
+		layout->addWidget(new GLView(*_modelMeshFiles));
+
+		QRect rect = centralWidget()->geometry();
+		widget->setGeometry(rect);
+		setCentralWidget(widget);
+	}
 }
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::viewMeshContextMenu(const QPoint & pos)
+void MainWindow::viewNodeContextMenu(const QPoint & pos)
 {
 	QModelIndex idx = _viewMeshFiles->indexAt(pos);
 
@@ -299,7 +306,7 @@ void MainWindow::viewMeshContextMenu(const QPoint & pos)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::removeCurrentMesh()
+void MainWindow::removeCurrentNode()
 {
 	_viewMeshFiles->clearSelection();
 	_modelMeshFiles->removeRows(_currMeshIndex.row(), 1, QModelIndex());
@@ -314,11 +321,11 @@ void MainWindow::transformCurrentMesh()
 	int code = dialog.exec();
 	if (code == 1) // accepted
 	{
-		RenderedMesh* info = (RenderedMesh*)_modelMeshFiles->data(_currMeshIndex, Qt::UserRole).value<void*>();
+		Node* node = (Node*)_modelMeshFiles->data(_currMeshIndex, Qt::UserRole).value<void*>();
 		QDebug(&msg) << dialog.getResult();
 		consolePrint(msg);
-		info->translate(dialog.getResult());
-		meshSelected(_currMeshIndex);
+		node->translateMesh(dialog.getResult());
+		nodeSelected(_currMeshIndex);
 	}
 }
 
@@ -331,20 +338,19 @@ void MainWindow::scaleCurrentMesh()
 	int code = dialog.exec();
 	if (code == 1) // accepted
 	{
-		RenderedMesh* info = (RenderedMesh*)_modelMeshFiles->data(_currMeshIndex, Qt::UserRole).value<void*>();
+		Node* node = (Node*)_modelMeshFiles->data(_currMeshIndex, Qt::UserRole).value<void*>();
 		QDebug(&msg) << dialog.getResult();
 		consolePrint(msg);
-		info->scale(dialog.getResult());
-		meshSelected(_currMeshIndex);
+		node->scaleMesh(dialog.getResult());
+		nodeSelected(_currMeshIndex);
 	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::meshSelected(const QModelIndex & index)
+void MainWindow::nodeSelected(const QModelIndex & index)
 {
-	RenderedMesh* info = (RenderedMesh*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
-
-    if (info)
+	Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
+	if (node)
     {
 		//cout << "selected " << info->getMesh()->getName().toUtf8().constData() << endl;
 
@@ -353,33 +359,35 @@ void MainWindow::meshSelected(const QModelIndex & index)
         //imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
         //imageLabel->setScaledContents(false);
         imageLabel1->setScaledContents(true);
-		imageLabel1->setPixmap(QPixmap::fromImage(info->getTop()->toQImage(), Qt::ThresholdDither));
-		imageLabel1->setObjectName(info->getTop()->getName());
+		imageLabel1->setPixmap(QPixmap::fromImage(node->getTop()->toQImage(), Qt::ThresholdDither));
+		imageLabel1->setObjectName(node->getTop()->getName());
 
         QLabel* imageLabel2 = new QLabel();
         imageLabel2->setBackgroundRole(QPalette::Base);
         //imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
         //imageLabel->setScaledContents(false);
         imageLabel2->setScaledContents(true);
-		imageLabel2->setPixmap(QPixmap::fromImage(info->getBottom()->toQImage(), Qt::ThresholdDither));
-		imageLabel2->setObjectName(info->getBottom()->getName());
+		imageLabel2->setPixmap(QPixmap::fromImage(node->getBottom()->toQImage(), Qt::ThresholdDither));
+		imageLabel2->setObjectName(node->getBottom()->getName());
 
-        QWidget* widget = new QWidget;
-        QVBoxLayout* layout = new QVBoxLayout;
-        widget->setLayout(layout);
+		QWidget* widget = new QWidget;
+		QGridLayout* layout = new QGridLayout;
+		widget->setLayout(layout);
 
-        layout->addWidget(imageLabel1);
-        layout->addWidget(imageLabel2);
-
-        setCentralWidget(widget);
-    }
+		layout->addWidget(imageLabel1, 0, 0);
+		layout->addWidget(imageLabel2, 1, 0);
+		layout->addWidget(new GLView(node, _modelMeshFiles->getGeometry()), 0, 1, 2, 1);
+		QRect rect = centralWidget()->geometry();
+		widget->setGeometry(rect);
+		setCentralWidget(widget);
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogSetBoxGeometry()
 {
 	QString msg = tr("Setting box geometry to ");
-	VectorInputDialog dialog(this, msg, _threadPacker->getGeometry());
+	VectorInputDialog dialog(this, msg, _modelMeshFiles->getGeometry());
 
 	int code = dialog.exec();
 	if (code == 1) // accepted
@@ -389,7 +397,7 @@ void MainWindow::dialogSetBoxGeometry()
 		{
 			QDebug(&msg) << dialog.getResult();
 			consolePrint(msg);
-			_threadPacker->setGeometry(dialog.getResult());
+			_modelMeshFiles->setGeometry(dialog.getResult());
 		}
 		else
 			consolePrint(tr("Bad input"), 2);
@@ -466,7 +474,7 @@ void MainWindow::consolePrint(QString str, unsigned level)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::processMeshes()
+void MainWindow::processNodes()
 {
 	if (_threadPacker->isRunning())
 	{
@@ -475,13 +483,13 @@ void MainWindow::processMeshes()
 	}
 
 	consolePrint(tr("processing meshes"));
-	const MeshList* meshList = _modelMeshFiles->getMeshList();
-	if (meshList and (not meshList->empty()))
+
+	if (_modelMeshFiles->numNodes() != 0)
 	{		
-		QVector3D boxGeometry = _threadPacker->getGeometry();
-		for (unsigned i = 0; i < meshList->size(); i++)
+		QVector3D boxGeometry = _modelMeshFiles->getGeometry();
+		for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
 		{
-			const Mesh* mesh = (*meshList)[i]->getMesh();
+			const Mesh* mesh = _modelMeshFiles->getNode(i)->getMesh();
 			QVector3D meshGeometry = mesh->getMax() - mesh->getMin();
 
 			if (	meshGeometry.x() > boxGeometry.x() or
@@ -501,11 +509,14 @@ void MainWindow::processMeshes()
 			}
 		}
 
-		_threadPacker->setMeshList(meshList);
 		QProgressBar* progressBar = new QProgressBar();
 		progressBar->setRange(0, _threadPacker->maxProgress());
 		connect(_threadPacker, SIGNAL(reportProgress(int)), progressBar, SLOT(setValue(int)));
+
+		QRect rect = centralWidget()->geometry();
+		progressBar->setGeometry(rect);
 		setCentralWidget(progressBar);
+
 		consolePrint(tr("starting processing thread"));		
 		_threadPacker->start();
 	}
@@ -517,7 +528,7 @@ void MainWindow::processMeshes()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::processMeshesDone()
+void MainWindow::processNodesDone()
 {
 	mainShowResults();
 	consolePrint("done");

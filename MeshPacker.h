@@ -2,27 +2,17 @@
 #define MESHPACKER_H
 #include <QThread>
 #include "image.h"
-#include "RenderedMesh.h"
-
-#define PACKER_DEFAULT_GEOMETRY QVector3D(1000., 1000., 1000.)
+#include "MeshFilesModel.h"
 
 class MeshPacker : public QThread
 {
 	Q_OBJECT
 
-	QVector3D			_geometry;
-	const MeshList*		_meshes;
-	std::vector<QVector3D> _results;
-
 public:
-	explicit MeshPacker(QVector3D size, QObject *parent = 0);
+	explicit MeshPacker(MeshFilesModel& nodes, QObject *parent = 0);
+	void		setNodeList(MeshFilesModel& nodes);
+	size_t		maxProgress() const;
 
-	size_t numMeshes() const { return _meshes->size(); }
-	void setGeometry(const QVector3D geometry) { _geometry = geometry; }
-	void setMeshList(const MeshList *meshes);
-	QVector3D getGeometry() const { return _geometry; }
-	const std::vector<QVector3D>&	getResults() const { return _results; }
-	size_t maxProgress() const;
 protected:
 	void run();
 
@@ -33,7 +23,10 @@ signals:
 	void report(QString what);
 
 public slots:
-	
+
+private:
+
+	MeshFilesModel&			_nodes;
 };
 
 #endif // MESHPACKER_H

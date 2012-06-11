@@ -9,7 +9,9 @@
 #include <QStringList>
 using namespace std;
 
-Mesh::Mesh(const char* off_filename)
+Mesh::Mesh(const char* off_filename) :
+	_min(INFINITY, INFINITY, INFINITY),
+	_max(-INFINITY, -INFINITY, -INFINITY)
 {    
     QStringList sl = QString(off_filename).split('/');
     _name = sl.at(sl.size() - 1).split(".").at(0);
@@ -92,10 +94,14 @@ Mesh::Mesh(const char* off_filename)
             {
                 unsigned vertexIndex;
                 if(iss >> vertexIndex)
-                    _triangles.push_back(vertexIndex);
+				{
+					_min = vecmin(_min, _vertices[vertexIndex]);
+					_max = vecmax(_max, _vertices[vertexIndex]);
+					_triangleVertices.push_back(vertexIndex);
+				}
                 else
                     throw Exception("%s: in %s:%u polygon is not a Triangle.", __FUNCTION__, off_filename, lineNumber);
-            }
+            }			
         }
         else
             throw Exception("%s: in %s:%u failed to read number of vertices.", __FUNCTION__, off_filename, lineNumber);
@@ -103,7 +109,6 @@ Mesh::Mesh(const char* off_filename)
         lineNumber++;
     }
     file.close();
-	recalcMinMax();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -173,10 +178,10 @@ void Mesh::recalcMinMax()
 	_min = QVector3D(INFINITY, INFINITY, INFINITY);
 	_max = QVector3D(-INFINITY, -INFINITY, -INFINITY);
 
-	for (unsigned i = 0; i < _triangles.size(); i++)
+	for (unsigned i = 0; i < _triangleVertices.size(); i++)
 	{
-		_min = vecmin(_min, _vertices[_triangles[i]]);
-		_max = vecmax(_max, _vertices[_triangles[i]]);
+		_min = vecmin(_min, _vertices[_triangleVertices[i]]);
+		_max = vecmax(_max, _vertices[_triangleVertices[i]]);
 	}
 }
 
@@ -187,23 +192,18 @@ void Mesh::recalcMinMax()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 bool Mesh::Iterator::is_good() const
 {
-	return (_curr * Triangle::NUM_VERTICES) < _mesh._triangles.size();
+	return (_curr * Triangle::NUM_VERTICES) < _mesh._triangleVertices.size();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Triangle Mesh::Iterator::get() const
 {
-
-	const unsigned* indices = &_mesh._triangles[_curr * Triangle::NUM_VERTICES];
-    // the next 3 indices are vertices.
-	//cout << "indices: " << indices[0] << " " << indices[1] << " " << indices[2] << " vertices: ";
+	const unsigned* indices = &_mesh._triangleVertices[_curr * Triangle::NUM_VERTICES];
 
     Triangle t;
 	for (unsigned i = 0; i < Triangle::NUM_VERTICES; i++)
-    {        
         t.vertex[i] = _mesh.getVertex(indices[i]);		
-    }
-	//cout << endl;
+
     return t;
 }
 
@@ -215,4 +215,50 @@ Triangle Mesh::Iterator::get() const
 void Mesh::Iterator::next()
 {
     _curr++;    
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+///	Draws this mesh.
+///
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+#include <qgl.h>
+void drawAxisAlignedBox(QVector3D min, QVector3D max)
+{
+	// AABB Vertices
+	GLdouble data[] =
+	{
+		min.x(), min.y(), min.z(),
+		min.x(), max.y(), min.z(),
+		max.x(), max.y(), min.z(),
+		max.x(), min.y(), min.z(),
+		min.x(), min.y(), max.z(),
+		min.x(), max.y(), max.z(),
+		max.x(), max.y(), max.z(),
+		max.x(), min.y(), max.z()
+	};
+
+	static unsigned indices[] =
+	{
+			0, 1, 2, 3, // front face
+			0, 4, 5, 1, // left face
+			2, 6, 5, // top face
+			4, 7, 6, // back face
+			2, 3, 7 // right face
+	};
+
+	glVertexPointer(3, GL_DOUBLE, 0, data);
+	glDrawElements(GL_LINE_STRIP, sizeof(indices) / sizeof(indices[0]), GL_UNSIGNED_INT, indices);
+}
+
+void Mesh::draw(bool drawAABB) const
+{	
+	glEnableClientState(GL_VERTEX_ARRAY);
+	if (drawAABB)
+		drawAxisAlignedBox(_min, _max);
+	//glVertexPointer(/* num components */ 3, GL_FLOAT, sizeof(QVector3D), &_vertices[0]);
+	glVertexPointer(3, GL_FLOAT, 0, &_vertices[0]);
+	glDrawElements(GL_TRIANGLES, _triangleVertices.size(), GL_UNSIGNED_INT, &_triangleVertices[0]);
+
+	glDisableClientState(GL_VERTEX_ARRAY);
 }

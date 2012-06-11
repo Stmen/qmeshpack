@@ -28,7 +28,7 @@ public:
 	void		translate(const QVector3D offset);
 	QString		getName() const { return _name; }
 	void		recalcMinMax();
-
+	void		draw(bool drawAABB = true) const;
 
     /// this class is used to iterate over the Triangles of a Mesh.
     class Iterator : public ::Iterator<Triangle>
@@ -53,9 +53,11 @@ public:
 private:
 
 	std::vector<QVector3D>	_vertices;  /// this array stores vertix triples of floats, which represent the vertices
-	std::vector<unsigned>   _triangles; /// this array hold index triples of the triangles.
+	std::vector<unsigned>   _triangleVertices; /// this array hold index triples of the triangles.
 	QVector3D               _min; /// minimum x, y, z in this Mesh
 	QVector3D               _max; /// maximum x, y, z in this Mesh
     QString                 _name;
 
 };
+
+void drawAxisAlignedBox(QVector3D min, QVector3D max);

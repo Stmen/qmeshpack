@@ -1,17 +1,19 @@
 #include "MeshFilesModel.h"
 
-MeshFilesModel::MeshFilesModel(QObject *parent) :
-	QAbstractItemModel(parent)
+MeshFilesModel::MeshFilesModel(QVector3D geometry, QObject *parent) :
+	QAbstractItemModel(parent), _geometry(geometry)
 {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 MeshFilesModel::~MeshFilesModel()
 {
-	for (unsigned i = 0; i < _meshes.size(); i++)
+	/*
+	for (unsigned i = 0; i < _nodes.size(); i++)
 	{
-		delete _meshes[i];
+		delete _nodes[i];
 	}
+	*/
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +27,7 @@ int	MeshFilesModel::columnCount(const QModelIndex& parent) const
 int MeshFilesModel::rowCount(const QModelIndex& parent)const
 {
 	if (not parent.isValid())
-		return _meshes.size();
+		return _nodes.size();
 	else
 		return 0;
 }
@@ -73,7 +75,7 @@ QVariant MeshFilesModel::headerData(int section, Qt::Orientation orientation, in
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 QVariant MeshFilesModel::data(const QModelIndex& index, int role) const
 {
-	if (index.isValid() and index.row() >= 0 and (size_t)index.row() < _meshes.size())
+	if (index.isValid() and index.row() >= 0 and (size_t)index.row() < _nodes.size())
 	{
 		switch (role)
 		{
@@ -82,25 +84,25 @@ QVariant MeshFilesModel::data(const QModelIndex& index, int role) const
 				{
 					default:
 					case 0:
-						return _meshes[index.row()]->getMesh()->getName();
+						return _nodes[index.row()]->getMesh()->getName();
 					case 1:
-						return _meshes[index.row()]->getMesh()->getGeometry().x();
+						return _nodes[index.row()]->getMesh()->getGeometry().x();
 					case 2:
-						return _meshes[index.row()]->getMesh()->getGeometry().y();
+						return _nodes[index.row()]->getMesh()->getGeometry().y();
 					case 3:
-						return _meshes[index.row()]->getMesh()->getGeometry().z();
+						return _nodes[index.row()]->getMesh()->getGeometry().z();
 					case 4:
-						return _meshes[index.row()]->getBottom()->minColor();
+						return _nodes[index.row()]->getBottom()->minColor();
 					case 5:
-						return _meshes[index.row()]->getBottom()->maxColor();
+						return _nodes[index.row()]->getBottom()->maxColor();
 					case 6:
-						return _meshes[index.row()]->getTop()->minColor();
+						return _nodes[index.row()]->getTop()->minColor();
 					case 7:
-						return _meshes[index.row()]->getTop()->maxColor();
+						return _nodes[index.row()]->getTop()->maxColor();
 				}
 
 			case Qt::UserRole:
-			   return qVariantFromValue((void *) _meshes[index.row()]);
+			   return qVariantFromValue((void *) _nodes[index.row()]);
 			   //return QVariant(QVariant::UserType, _meshes[index.row()]);
 
 			default:
@@ -132,10 +134,10 @@ QModelIndex MeshFilesModel::parent(const QModelIndex &child) const
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 bool MeshFilesModel::removeRows(int row, int count, const QModelIndex& parent)
 {
-	if ((not parent.isValid()) and row >= 0 and (size_t)row < _meshes.size() and count)
+	if ((not parent.isValid()) and row >= 0 and (size_t)row < _nodes.size() and count)
 	{
 		beginRemoveRows(parent, row, row + count);
-		_meshes.erase(_meshes.begin() + row, _meshes.begin() + row + count);
+		_nodes.erase(_nodes.begin() + row, _nodes.begin() + row + count);
 		endRemoveRows();
 		return true;
 	}
@@ -144,10 +146,25 @@ bool MeshFilesModel::removeRows(int row, int count, const QModelIndex& parent)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void MeshFilesModel::addNode(Node* node)
+{
+	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
+	_nodes.push_back(node);
+	endInsertRows();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void MeshFilesModel::addMesh(const char* filename, unsigned samples_per_pixel)
 {
-	RenderedMesh* meshInfo = new RenderedMesh(filename, samples_per_pixel);		
-	beginInsertRows(QModelIndex(), _meshes.size(), _meshes.size() + 1);
-	_meshes.push_back(meshInfo);
+	Node* node = new Node(filename, samples_per_pixel);
+	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
+	_nodes.push_back(node);
 	endInsertRows();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void MeshFilesModel::setGeometry(QVector3D geometry)
+{
+	_geometry = geometry;
+	emit geometryChanged();
 }
