@@ -119,6 +119,18 @@ MainWindow::~MainWindow()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+	QSettings settings("Konstantin", APP_NAME);
+	settings.setValue("geometry", saveGeometry());
+	settings.setValue("windowState", saveState());
+	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
+	settings.setValue("samples_per_pixel", _defaultSamplesPerPixel);
+	settings.setValue("dilation", _defaultDilationValue);
+	QMainWindow::closeEvent(event);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::createMeshList()
 {
 	QSettings settings("Konstantin", APP_NAME);
@@ -129,7 +141,7 @@ void MainWindow::createMeshList()
 	_viewMeshFiles->setModel(_modelMeshFiles);
 	//_viewMeshFiles->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
 	_viewMeshFiles->setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(viewNodeContextMenu(const QPoint &)));
+	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(menuContextNode(const QPoint &)));
 	connect(_viewMeshFiles, SIGNAL(clicked(const QModelIndex &)), this, SLOT(mainNodeSelected(const QModelIndex &)));
 	QString mname = tr("Mesh list");
 	QDockWidget* dockWidget = new QDockWidget(mname, this);
@@ -229,15 +241,40 @@ void MainWindow::createStatusBar()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::closeEvent(QCloseEvent *event)
+void MainWindow::mainNodeSelected(const QModelIndex & index)
 {
-	QSettings settings("Konstantin", APP_NAME);
-	settings.setValue("geometry", saveGeometry());
-	settings.setValue("windowState", saveState());
-	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
-	settings.setValue("samples_per_pixel", _defaultSamplesPerPixel);
-	settings.setValue("dilation", _defaultDilationValue);
-	QMainWindow::closeEvent(event);
+	Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
+	if (node)
+	{
+		//cout << "selected " << info->getMesh()->getName().toUtf8().constData() << endl;
+
+		QLabel* imageLabel1 = new QLabel();
+		imageLabel1->setBackgroundRole(QPalette::Base);
+		//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
+		//imageLabel->setScaledContents(false);
+		imageLabel1->setScaledContents(true);
+		imageLabel1->setPixmap(QPixmap::fromImage(node->getTop()->toQImage(), Qt::ThresholdDither));
+		imageLabel1->setObjectName(node->getTop()->getName());
+
+		QLabel* imageLabel2 = new QLabel();
+		imageLabel2->setBackgroundRole(QPalette::Base);
+		//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
+		//imageLabel->setScaledContents(false);
+		imageLabel2->setScaledContents(true);
+		imageLabel2->setPixmap(QPixmap::fromImage(node->getBottom()->toQImage(), Qt::ThresholdDither));
+		imageLabel2->setObjectName(node->getBottom()->getName());
+
+		QWidget* widget = new QWidget;
+		QGridLayout* layout = new QGridLayout;
+		widget->setLayout(layout);
+
+		layout->addWidget(imageLabel1, 0, 0);
+		layout->addWidget(imageLabel2, 1, 0);
+		layout->addWidget(new GLView(node, _modelMeshFiles->getGeometry()), 0, 1, 2, 1);
+		widget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+
+		setCentralWidget(widget);
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -294,7 +331,7 @@ void MainWindow::mainShowResults()
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::viewNodeContextMenu(const QPoint & pos)
+void MainWindow::menuContextNode(const QPoint & pos)
 {
 	QModelIndex idx = _viewMeshFiles->indexAt(pos);
 
@@ -305,6 +342,8 @@ void MainWindow::viewNodeContextMenu(const QPoint & pos)
 		menu.insertAction(0, _actMeshRemove);
 		menu.insertAction(0, _actMeshScale);
 		menu.insertAction(0, _actMeshTranslate);
+		//menu.addSeparator();
+		//menu.addAction("Copy", )
 		menu.exec(_viewMeshFiles->mapToGlobal(pos));
 	}
 }
@@ -350,42 +389,6 @@ void MainWindow::scaleCurrentMesh()
 	}
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::mainNodeSelected(const QModelIndex & index)
-{
-	Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
-	if (node)
-    {
-		//cout << "selected " << info->getMesh()->getName().toUtf8().constData() << endl;
-
-        QLabel* imageLabel1 = new QLabel();
-        imageLabel1->setBackgroundRole(QPalette::Base);
-        //imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
-        //imageLabel->setScaledContents(false);
-        imageLabel1->setScaledContents(true);
-		imageLabel1->setPixmap(QPixmap::fromImage(node->getTop()->toQImage(), Qt::ThresholdDither));
-		imageLabel1->setObjectName(node->getTop()->getName());
-
-        QLabel* imageLabel2 = new QLabel();
-        imageLabel2->setBackgroundRole(QPalette::Base);
-        //imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
-        //imageLabel->setScaledContents(false);
-        imageLabel2->setScaledContents(true);
-		imageLabel2->setPixmap(QPixmap::fromImage(node->getBottom()->toQImage(), Qt::ThresholdDither));
-		imageLabel2->setObjectName(node->getBottom()->getName());
-
-		QWidget* widget = new QWidget;
-		QGridLayout* layout = new QGridLayout;
-		widget->setLayout(layout);
-
-		layout->addWidget(imageLabel1, 0, 0);
-		layout->addWidget(imageLabel2, 1, 0);
-		layout->addWidget(new GLView(node, _modelMeshFiles->getGeometry()), 0, 1, 2, 1);
-		widget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
-
-		setCentralWidget(widget);
-	}
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogSetBoxGeometry()
@@ -468,31 +471,6 @@ void MainWindow::dialogAddMesh()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::consolePrint(QString str, unsigned level)
-{
-	// html colors: http://www.w3schools.com/html/html_colornames.asp
-	const static QString alertHtml = "<font color=\"Red\">";
-	const static QString notifyHtml = "<font color=\"BlueViolet\">";
-	const static QString infoHtml = "<font color=\"Black\">";
-	const static QString endHtml = "</font><br>";
-
-	QString prefix;
-	switch(level)
-	{
-		case 0: prefix = infoHtml; break;
-		case 1: prefix = notifyHtml; break;
-		case 2: prefix = alertHtml; break;
-		default: prefix = infoHtml; break;
-	}
-
-	QString text = QDateTime::currentDateTime().toString("%1[hh:mm:ss] %2%3").arg(prefix, str, endHtml);
-	QTextCursor cursor = _console->textCursor();
-	_console->insertHtml(text);
-	_console->setTextCursor(cursor);
-	// TODO check if console too long and remove the lines above.
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::processNodes()
 {
 	if (_threadPacker->isRunning())
@@ -551,6 +529,31 @@ void MainWindow::processNodesDone()
 {
 	mainShowResults();
 	consolePrint("done");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void MainWindow::consolePrint(QString str, unsigned level)
+{
+	// html colors: http://www.w3schools.com/html/html_colornames.asp
+	const static QString alertHtml = "<font color=\"Red\">";
+	const static QString notifyHtml = "<font color=\"BlueViolet\">";
+	const static QString infoHtml = "<font color=\"Black\">";
+	const static QString endHtml = "</font><br>";
+
+	QString prefix;
+	switch(level)
+	{
+		case 0: prefix = infoHtml; break;
+		case 1: prefix = notifyHtml; break;
+		case 2: prefix = alertHtml; break;
+		default: prefix = infoHtml; break;
+	}
+
+	QString text = QDateTime::currentDateTime().toString("%1[hh:mm:ss] %2%3").arg(prefix).arg(str).arg(endHtml);
+	QTextCursor cursor = _console->textCursor();
+	_console->insertHtml(text);
+	_console->setTextCursor(cursor);
+	// TODO check if console too long and remove the lines above.
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

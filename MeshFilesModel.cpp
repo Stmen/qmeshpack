@@ -20,7 +20,7 @@ MeshFilesModel::~MeshFilesModel()
 int	MeshFilesModel::columnCount(const QModelIndex& parent) const
 {
 	(void)parent.row(); // supress unused warning
-	return 8; // name, w, h, d, top_min_color/max_color, bottom min/max
+	return 5; // name, position, geometry, dilation value, samples per pixel
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -50,26 +50,24 @@ QVariant MeshFilesModel::headerData(int section, Qt::Orientation orientation, in
 			{
 				default:
 				case 0:
-					return QString("name");
+					return QString("Name");
 				case 1:
-					return QString("width");
+					return QString("Poisition");
 				case 2:
-					return QString("height");
+					return QString("Geometry");
 				case 3:
-					return QString("depth");
+					return QString("Dilation value");
 				case 4:
-					return QString("bottom min");
-				case 5:
-					return QString("bottom max");
-				case 6:
-					return QString("top min");
-				case 7:
-					return QString("top max");
-
+					return QString("Samples per pixel");
 			}
 		}
 	}
 	return QVariant();
+}
+
+QString toString(QVector3D vec)
+{
+	return QString("(%1, %2, %3)").arg(vec.x()).arg(vec.y()).arg(vec.z());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,33 +75,27 @@ QVariant MeshFilesModel::data(const QModelIndex& index, int role) const
 {
 	if (index.isValid() and index.row() >= 0 and (size_t)index.row() < _nodes.size())
 	{
+		Node* node = _nodes[index.row()];
 		switch (role)
 		{
-			case Qt::DisplayRole:
+			case Qt::DisplayRole:				
 				switch(index.column())
 				{
 					default:
 					case 0:
-						return _nodes[index.row()]->getMesh()->getName();
+						return node->getMesh()->getName();
 					case 1:
-						return _nodes[index.row()]->getMesh()->getGeometry().x();
+						return toString(node->getPos());
 					case 2:
-						return _nodes[index.row()]->getMesh()->getGeometry().y();
+						return toString(node->getMesh()->getGeometry());
 					case 3:
-						return _nodes[index.row()]->getMesh()->getGeometry().z();
+						return node->getDilationValue();
 					case 4:
-						return _nodes[index.row()]->getBottom()->minColor();
-					case 5:
-						return _nodes[index.row()]->getBottom()->maxColor();
-					case 6:
-						return _nodes[index.row()]->getTop()->minColor();
-					case 7:
-						return _nodes[index.row()]->getTop()->maxColor();
+						return node->getSamplesPerPixel();
 				}
 
 			case Qt::UserRole:
-			   return qVariantFromValue((void *) _nodes[index.row()]);
-			   //return QVariant(QVariant::UserType, _meshes[index.row()]);
+			   return qVariantFromValue((void *)node);
 
 			default:
 				return QVariant();

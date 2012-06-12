@@ -77,7 +77,7 @@ public slots:
     void aboutThisApp();
 	void mainNodeSelected(const QModelIndex& index);
     void closeEvent(QCloseEvent *event);
-	void viewNodeContextMenu(const QPoint &pos);
+	void menuContextNode(const QPoint &pos);
 	void processNodesDone();
 	void consolePrint(QString str, unsigned level = 0);
 	void mainShowDefault();
