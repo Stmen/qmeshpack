@@ -91,6 +91,7 @@ MainWindow::MainWindow() : QMainWindow()
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
 	_defaultSamplesPerPixel = qvariant_cast<unsigned>(settings.value("samples_per_pixel", 10));
+	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));
 
 	createMeshList();
 
@@ -129,7 +130,7 @@ void MainWindow::createMeshList()
 	//_viewMeshFiles->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
 	_viewMeshFiles->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(viewNodeContextMenu(const QPoint &)));
-	connect(_viewMeshFiles, SIGNAL(clicked(const QModelIndex &)), this, SLOT(nodeSelected(const QModelIndex &)));
+	connect(_viewMeshFiles, SIGNAL(clicked(const QModelIndex &)), this, SLOT(mainNodeSelected(const QModelIndex &)));
 	QString mname = tr("Mesh list");
 	QDockWidget* dockWidget = new QDockWidget(mname, this);
 	dockWidget->setObjectName(mname);
@@ -158,15 +159,19 @@ void MainWindow::createActions()
 	_actProcess->setStatusTip(tr("Starts combining the Meshes."));
 	connect(_actProcess, SIGNAL(triggered()), this, SLOT(processNodes()));
 
-	_actSetBoxGeometry = new QAction(QIcon(), tr("&Set geometry"), this);
+	_actSetBoxGeometry = new QAction(QIcon(), tr("Set &geometry"), this);
 	_actSetBoxGeometry->setStatusTip(tr("Sets the bounding box geometry for the target space."));
 	connect(_actSetBoxGeometry, SIGNAL(triggered()), this, SLOT(dialogSetBoxGeometry()));
 
-	_actSetDefaultSamplesPerPixel = new QAction(QIcon(), tr("Set &default samples per pixel"), this);
+	_actSetDefaultSamplesPerPixel = new QAction(QIcon(), tr("Set default &samples per pixel"), this);
 	_actSetDefaultSamplesPerPixel->setStatusTip(tr("Sets the pixel rendering resolution."));
 	connect(_actSetDefaultSamplesPerPixel, SIGNAL(triggered()), this, SLOT(dialogSetDefaultSamplesPerPixel()));
 
-	_actShowResults = new QAction(QIcon(), tr("&Show results"), this);
+	_actSetDefaultDilationValue = new QAction(QIcon(), tr("Set default &dilation value"), this);
+	_actSetDefaultDilationValue->setStatusTip(tr("Sets the default dilation value."));
+	connect(_actSetDefaultDilationValue, SIGNAL(triggered()), this, SLOT(dialogSetDefaultDilation()));
+
+	_actShowResults = new QAction(QIcon(), tr("Show &results"), this);
 	_actShowResults->setStatusTip(tr("Shows results in the main window"));
 	connect(_actShowResults, SIGNAL(triggered()), this, SLOT(mainShowResults()));
 
@@ -203,6 +208,7 @@ void MainWindow::createMenus()
 	menu = new QMenu(tr("&Settings"));
 	menu->insertAction(0, _actSetBoxGeometry);
 	menu->insertAction(0, _actSetDefaultSamplesPerPixel);
+	menu->insertAction(0, _actSetDefaultDilationValue);
 	menuBar()->addMenu(menu);
 
 	menu = new QMenu(tr("&Help"));
@@ -229,6 +235,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	settings.setValue("geometry", saveGeometry());
 	settings.setValue("windowState", saveState());
 	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
+	settings.setValue("samples_per_pixel", _defaultSamplesPerPixel);
+	settings.setValue("dilation", _defaultDilationValue);
 	QMainWindow::closeEvent(event);
 }
 
@@ -242,6 +250,8 @@ void MainWindow::mainShowDefault()
 	mainWidget->setScaledContents(false);
 	Image img(1000, 700);
 	testTriangle1(&img);
+	img.dilate(10, Image::maxValue);
+
 
 	QFont font("times", 20);
 	QPixmap pixmap = QPixmap::fromImage(img.toQImage(),  Qt::ThresholdDither);
@@ -254,7 +264,7 @@ void MainWindow::mainShowDefault()
 	painter.end();
 
 	mainWidget->setPixmap(pixmap);
-
+	mainWidget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 	setCentralWidget(mainWidget);
 }
 
@@ -274,17 +284,11 @@ void MainWindow::mainShowResults()
 																QString::number(pos.y()),
 																QString::number(pos.z()))));
 
+		QSplitter* splitter = new QSplitter(Qt::Vertical, this);
 
-		QWidget* widget = new QWidget();
-		QVBoxLayout* layout = new QVBoxLayout;
-		widget->setLayout(layout);
-
-		layout->addWidget(tableWidget);
-		layout->addWidget(new GLView(*_modelMeshFiles));
-
-		QRect rect = centralWidget()->geometry();
-		widget->setGeometry(rect);
-		setCentralWidget(widget);
+		splitter->addWidget(tableWidget);
+		splitter->addWidget(new GLView(*_modelMeshFiles));
+		setCentralWidget(splitter);
 	}
 }
 
@@ -325,7 +329,7 @@ void MainWindow::transformCurrentMesh()
 		QDebug(&msg) << dialog.getResult();
 		consolePrint(msg);
 		node->translateMesh(dialog.getResult());
-		nodeSelected(_currMeshIndex);
+		mainNodeSelected(_currMeshIndex);
 	}
 }
 
@@ -342,12 +346,12 @@ void MainWindow::scaleCurrentMesh()
 		QDebug(&msg) << dialog.getResult();
 		consolePrint(msg);
 		node->scaleMesh(dialog.getResult());
-		nodeSelected(_currMeshIndex);
+		mainNodeSelected(_currMeshIndex);
 	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::nodeSelected(const QModelIndex & index)
+void MainWindow::mainNodeSelected(const QModelIndex & index)
 {
 	Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
 	if (node)
@@ -377,8 +381,8 @@ void MainWindow::nodeSelected(const QModelIndex & index)
 		layout->addWidget(imageLabel1, 0, 0);
 		layout->addWidget(imageLabel2, 1, 0);
 		layout->addWidget(new GLView(node, _modelMeshFiles->getGeometry()), 0, 1, 2, 1);
-		QRect rect = centralWidget()->geometry();
-		widget->setGeometry(rect);
+		widget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+
 		setCentralWidget(widget);
 	}
 }
@@ -420,6 +424,21 @@ void MainWindow::dialogSetDefaultSamplesPerPixel()
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void MainWindow::dialogSetDefaultDilation()
+{
+	QString msg = tr("Setting default dilation value ");
+	bool ok;
+	double value = QInputDialog::getInteger(this, msg, tr("dilation value"), _defaultDilationValue,
+												 0, 80, 1, &ok);
+	if (ok)
+	{
+		_defaultDilationValue = value;
+		consolePrint(msg + QString::number(value));
+	}
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogAddMesh()
 {
     QString filename = QFileDialog::getOpenFileName(this,
@@ -431,7 +450,7 @@ void MainWindow::dialogAddMesh()
         try
         {
 			consolePrint(QString("opening \"%1\"").arg(filename));
-			_modelMeshFiles->addMesh(filename.toUtf8().constData(), _defaultSamplesPerPixel);
+			_modelMeshFiles->addMesh(filename.toUtf8().constData(), _defaultSamplesPerPixel, _defaultDilationValue);
         }
 		catch (const std::exception& ex)
         {

@@ -37,15 +37,14 @@ void MeshPacker::run()
 	{
 		Node* node = _nodes.getNode(i);
 		emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()));
-		QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 
 		Image::ColorType best_z = base.computeMinZ(0, 0, *(node->getBottom()));
 		unsigned best_x = 0;
 		unsigned best_y = 0;
 
 		//collapse(2)
-		unsigned max_y = max.y();
-		unsigned max_x = max.x();
+		unsigned max_y = _nodes.getGeometry().y() - node->getTop()->getHeight();
+		unsigned max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();
 
 		#pragma omp parallel for collapse(2)
 		for (unsigned y = 0; y < max_y; y++)
@@ -68,8 +67,10 @@ void MeshPacker::run()
 			}
 		}
 		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
-		QVector3D best = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin();
-		node->setPos(best);
+
+		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
+				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
+		node->setPos(newPos);
 	}
 
 	emit processingDone();

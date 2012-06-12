@@ -3,18 +3,18 @@
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Node::Node(const char* filename, unsigned spp)
-	: _samplesPerPixel(spp)
+Node::Node(const char* filename, unsigned spp, unsigned dilation)
+	: _samplesPerPixel(spp), _dilation(dilation)
 {
 	_mesh = new Mesh(filename);
 	auto_ptr<Mesh> mesh_guard(_mesh);
 
-	_top = new Image(*_mesh, Image::Top, _samplesPerPixel);
-	auto_ptr<Image> image_guard(_top);
+	#pragma omp parallel
+	{
+		_top = new Image(*_mesh, Image::Top, _samplesPerPixel, dilation);
+		_bottom = new Image(*_mesh, Image::Bottom, _samplesPerPixel, dilation);
+	}
 
-	_bottom = new Image(*_mesh, Image::Bottom, _samplesPerPixel);
-
-	image_guard.release();
 	mesh_guard.release();
 }
 

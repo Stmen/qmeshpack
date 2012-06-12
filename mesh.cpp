@@ -97,7 +97,7 @@ Mesh::Mesh(const char* off_filename) :
 				{
 					_min = vecmin(_min, _vertices[vertexIndex]);
 					_max = vecmax(_max, _vertices[vertexIndex]);
-					_triangleVertices.push_back(vertexIndex);
+					_triangleIndices.push_back(vertexIndex);
 				}
                 else
                     throw Exception("%s: in %s:%u polygon is not a Triangle.", __FUNCTION__, off_filename, lineNumber);
@@ -178,10 +178,33 @@ void Mesh::recalcMinMax()
 	_min = QVector3D(INFINITY, INFINITY, INFINITY);
 	_max = QVector3D(-INFINITY, -INFINITY, -INFINITY);
 
-	for (unsigned i = 0; i < _triangleVertices.size(); i++)
+	for (unsigned i = 0; i < _triangleIndices.size(); i++)
 	{
-		_min = vecmin(_min, _vertices[_triangleVertices[i]]);
-		_max = vecmax(_max, _vertices[_triangleVertices[i]]);
+		_min = vecmin(_min, _vertices[_triangleIndices[i]]);
+		_max = vecmax(_max, _vertices[_triangleIndices[i]]);
+	}
+}
+
+#include <map>
+#include <vector>
+void Mesh::buildNormals()
+{
+	std::map</* index = */unsigned, /* normals = */ std::vector<QVector3D>*> map;
+
+	for (unsigned i = 0; i < _triangleIndices.size(); i += 3)
+	{
+		unsigned* indices = &_triangleIndices[i];
+		QVector3D vertex[3] =
+		{
+			_vertices[indices[0]],
+			_vertices[indices[1]],
+			_vertices[indices[2]]
+		};
+
+
+		QVector3D normal = QVector3D::crossProduct(vertex[1] - vertex[0], vertex[2] - vertex[0]).normalized();
+
+
 	}
 }
 
@@ -192,13 +215,13 @@ void Mesh::recalcMinMax()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 bool Mesh::Iterator::is_good() const
 {
-	return (_curr * Triangle::NUM_VERTICES) < _mesh._triangleVertices.size();
+	return (_curr * Triangle::NUM_VERTICES) < _mesh._triangleIndices.size();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Triangle Mesh::Iterator::get() const
 {
-	const unsigned* indices = &_mesh._triangleVertices[_curr * Triangle::NUM_VERTICES];
+	const unsigned* indices = &_mesh._triangleIndices[_curr * Triangle::NUM_VERTICES];
 
     Triangle t;
 	for (unsigned i = 0; i < Triangle::NUM_VERTICES; i++)
@@ -258,7 +281,7 @@ void Mesh::draw(bool drawAABB) const
 		drawAxisAlignedBox(_min, _max);
 	//glVertexPointer(/* num components */ 3, GL_FLOAT, sizeof(QVector3D), &_vertices[0]);
 	glVertexPointer(3, GL_FLOAT, 0, &_vertices[0]);
-	glDrawElements(GL_TRIANGLES, _triangleVertices.size(), GL_UNSIGNED_INT, &_triangleVertices[0]);
+	glDrawElements(GL_TRIANGLES, _triangleIndices.size(), GL_UNSIGNED_INT, &_triangleIndices[0]);
 
 	glDisableClientState(GL_VERTEX_ARRAY);
 }

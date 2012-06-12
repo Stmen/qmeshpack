@@ -57,6 +57,28 @@ void GLView::initializeGL()
 	glShadeModel(GL_SMOOTH);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glClearColor(59./256., 110. / 256., 165./256., 0.);
+
+
+#ifdef USE_LIGHTING
+	//glFrontFace(GL_CCW);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+
+	// Create light components
+	GLfloat ambientLight[] = { 0.2f, 0.2f, 0.2f, 1.0f };
+	GLfloat diffuseLight[] = { 0.8, 0.8, 0.8, 1.f };
+	GLfloat specularLight[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+	GLfloat position[] = { -1.5f, 1.0f, -4.0f, 1.0f };
+
+	// Assign created components to GL_LIGHT0
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specularLight);
+	glLightfv(GL_LIGHT0, GL_POSITION, position);
+
+	//GLfloat position[] = { -1.5f, 1.0f, -4.0f, 1.0f };
+	//glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*)&_lightPos);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +90,7 @@ void GLView::resizeGL(int width, int height)
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	glFrustum(-1., 1., -1., 1., 1., 5000);
+	glFrustum(-(float)width * 0.001, (float)width *  0.001, -(float)height *  0.001, (float)height *  0.001, 1., 5000);
 	glMatrixMode(GL_MODELVIEW);
 }
 
@@ -79,8 +101,6 @@ void GLView::paintGL()
 	glLoadMatrixd(_cam.inverted().constData());
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-
 
 	QVector3D min(INFINITY, INFINITY, INFINITY), max(-INFINITY, -INFINITY, -INFINITY);
 	glColor3f(1., 0., 0.);

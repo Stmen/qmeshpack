@@ -18,7 +18,7 @@ public:
 	static bool minValue(ColorType imageZ, ColorType newZ);
 	static bool maxValue(ColorType imageZ, ColorType newZ);
 
-	Image(const Mesh &mesh, Mode mode, unsigned samples_per_pixel = 10);
+	Image(const Mesh &mesh, Mode mode, unsigned samples_per_pixel = 10, unsigned dilationValue = 0);
 	Image(unsigned width, unsigned height, ColorType clearColor = 0.);
     ~Image();
 
@@ -39,6 +39,7 @@ public:
 	void		triangle(QVector3D a, QVector3D b, QVector3D c, bool (&compare)(ColorType, ColorType), unsigned samples_per_pixel = 10);
 	QString		getName() const { return _name; }
 	void		recalcMinMax();
+	void		dilate(int dilationValue, bool (&compare)(ColorType, ColorType));
 
 private:
 	unsigned    _width;

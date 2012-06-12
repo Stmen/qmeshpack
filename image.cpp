@@ -19,7 +19,7 @@ Image::Image(unsigned width, unsigned height, ColorType clearColor) : _width(wid
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Image::Image(const Mesh& mesh, Mode mode, unsigned samples_per_pixel)
+Image::Image(const Mesh& mesh, Mode mode, unsigned samples_per_pixel, unsigned dilationValue)
 {
 	QVector3D geometry = mesh.getMax() - mesh.getMin();
 	if (geometry.x() < 1. or geometry.y() < 1. or geometry.z() < 1.)
@@ -39,9 +39,10 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned samples_per_pixel)
 				Triangle tri = it.get();
 				triangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
 						 Image::maxValue, samples_per_pixel);
-			}
-			recalcMinMax();
+			}			
+			//recalcMinMax();
 			assert(fabs(_maxColor - geometry.z()) < 1.);
+			dilate(dilationValue, Image::maxValue);
 			break;
 
 		case Bottom:
@@ -53,14 +54,14 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned samples_per_pixel)
 				triangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
 						 Image::minValue, samples_per_pixel);
 			}
-			recalcMinMax();
+			//recalcMinMax();
 			assert(fabs(_minColor) < 1.);
+			dilate(dilationValue, Image::minValue);
 			break;
 
 		default:
 			throw Exception("%s: bad drawing mode", __FUNCTION__);
-    }
-
+    }		
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -104,8 +105,8 @@ QImage Image::toQImage() const
     {
         for (unsigned y = 0; y < _height; y++)
         {
-			unsigned color = (unsigned)(_data[y * _width + x] * colorStep);
-			assert(color < 256);
+			int color = ((_data[y * _width + x] - _minColor) * colorStep);
+			assert(color >= 0 and color < 256);
 			unsigned rgbColor =  (color << 16) | (color << 8) | color;
             image.setPixel(x, y, rgbColor);
         }
@@ -245,6 +246,59 @@ void Image::recalcMinMax()
 		_minColor = std::min(_minColor, _data[i]);
 		_maxColor = std::max(_maxColor, _data[i]);
 	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
+{
+	if (dilationValue == 0)
+		return;
+
+	ColorType clearColor;
+	if (compare(_maxColor, _minColor))
+		clearColor = _minColor;
+	else if (compare(_minColor, _maxColor))
+		clearColor = _maxColor;
+	else
+		throw Exception("bad compare func");
+
+	Image newImage(dilationValue * 2 + _width, dilationValue * 2 + _height, clearColor);
+
+	for (unsigned x = 0; x < _width; x++)
+	{
+		for (unsigned y = 0; y < _height; y++)
+		{
+			ColorType color = at(x, y);
+			if (color != clearColor)
+			{
+				ColorType newColor = ((clearColor == _minColor) ? (color + dilationValue) : (color - dilationValue));
+
+				for (unsigned j = x - dilationValue; j < (x + dilationValue + 1); j++)
+				{
+					for (unsigned k = y - dilationValue; k < (y + dilationValue + 1); k++)
+					{
+						if (compare(newColor, newImage.at(j, k)))
+							newImage.setPixel(j, k, newColor);
+					}
+				}
+			}
+		}
+	}
+
+	std::swap(_data, newImage._data);
+	_height = newImage._height;
+	_width = newImage._width;
+	_maxColor = newImage._maxColor;
+	_minColor = newImage._minColor;
+	//recalcMinMax();
+	if (_minColor != 0)
+	{
+		for (unsigned i = 0; i < _width * _height; i++)
+			_data[i] -= _minColor;
+		_minColor -= _minColor;
+		_maxColor -= _minColor;
+	}
+	recalcMinMax();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

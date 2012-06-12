@@ -7,7 +7,7 @@ struct Node
 {
 	/// creates top and bottom z-buffer for the OFF file @param filename.
 	/// @param spp determines how fine The z value is determined.
-	Node(const char* filename, unsigned spp = 10);
+	Node(const char* filename, unsigned spp = 10, unsigned dilation = 10);
 	~Node();
 
 	void setSamplesPerPixel(unsigned spp);
@@ -22,6 +22,7 @@ struct Node
 	void			translateMesh(const QVector3D offset);
 	void			setPos(QVector3D pos) { _transform.setColumn(3, QVector4D(pos, 1.)); }
 	QVector3D		getPos() const { return _transform.column(3).toVector3D(); }
+	unsigned		getDilationValue() const  { return _dilation; }
 
 private:
 
@@ -29,5 +30,6 @@ private:
 	unsigned	_samplesPerPixel;
 	Image*		_top;
 	Image*		_bottom;
+	unsigned	_dilation;
 	QMatrix4x4	_transform;
 };

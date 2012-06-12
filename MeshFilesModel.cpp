@@ -154,9 +154,9 @@ void MeshFilesModel::addNode(Node* node)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MeshFilesModel::addMesh(const char* filename, unsigned samples_per_pixel)
+void MeshFilesModel::addMesh(const char* filename, unsigned samples_per_pixel, unsigned dilation)
 {
-	Node* node = new Node(filename, samples_per_pixel);
+	Node* node = new Node(filename, samples_per_pixel, dilation);
 	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
 	_nodes.push_back(node);
 	endInsertRows();

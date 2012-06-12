@@ -17,6 +17,7 @@ class GLView : public QGLWidget
 	QMatrix4x4			_cam;
 	QPoint				_mouseLast;
 	float				_mouseSensitivity, _moveSensetivity;
+	QVector4D			_lightPos;
 
 public:
 

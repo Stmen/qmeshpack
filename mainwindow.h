@@ -24,11 +24,11 @@
 #include <QToolBar>
 #include <QTextEdit>
 #include <QString>
+#include <QSplitter>
 #include "Node.h"
 #include "MeshFilesModel.h"
 #include "vectorinputdialog.h"
 #include "MeshPacker.h"
-#include "PackBox.h"
 
 class MainWindow : public QMainWindow
 {
@@ -45,8 +45,7 @@ class MainWindow : public QMainWindow
     QAction*			_actExit;
     QAction*			_actAddFile;
     QAction*            _actProcess;
-	QAction*			_actSetBoxGeometry;
-	QAction*			_actSetDefaultSamplesPerPixel;
+	QAction*			_actSetBoxGeometry;	
 	QAction*			_actShowResults;
 
 	// specific actions that work on the current _currMeshIndex
@@ -54,7 +53,13 @@ class MainWindow : public QMainWindow
 	QAction*            _actMeshRemove;
 	QAction*            _actMeshScale;
 	QAction*            _actMeshTranslate;
+
+	//
 	unsigned			_defaultSamplesPerPixel;
+	unsigned			_defaultDilationValue;
+
+	QAction*			_actSetDefaultSamplesPerPixel;
+	QAction*			_actSetDefaultDilationValue;
 
 	void createMeshList();
     void createActions();
@@ -66,10 +71,11 @@ public slots:
 	void dialogSetBoxGeometry();
 	void dialogAddMesh();
 	void dialogSetDefaultSamplesPerPixel();
+	void dialogSetDefaultDilation();
 	void addMeshByName(const char* name) { _modelMeshFiles->addMesh(name); }
     void processNodes();
     void aboutThisApp();
-    void nodeSelected(const QModelIndex& index);
+	void mainNodeSelected(const QModelIndex& index);
     void closeEvent(QCloseEvent *event);
 	void viewNodeContextMenu(const QPoint &pos);
 	void processNodesDone();
