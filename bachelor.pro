@@ -1,7 +1,8 @@
 TEMPLATE = app
 QT += opengl
 CONFIG += thread qt exceptions
-QMAKE_CXXFLAGS += -std=c++11 -march=native -fopenmp
+DEFINES += USE_LIGHTING
+QMAKE_CXXFLAGS += -march=native -fopenmp
 QMAKE_LFLAGS += -fopenmp
 SOURCES += main.cpp \
     mainwindow.cpp \

@@ -4,7 +4,6 @@
 #include "Node.h"
 #include <vector>
 
-
 class MeshFilesModel : public QAbstractItemModel
 {
 	Q_OBJECT

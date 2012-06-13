@@ -109,6 +109,10 @@ Mesh::Mesh(const char* off_filename) :
         lineNumber++;
     }
     file.close();
+
+#ifdef USE_LIGHTING
+	buildNormals();
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -213,16 +217,18 @@ void Mesh::buildNormals()
 		QVector3D normal = QVector3D::crossProduct(vertex[1] - vertex[0], vertex[2] - vertex[0]).normalized();
         for (unsigned j = 0; j < 3; j++)
         {
-            Normals::iterator it = normals.find(indices[i]);
+			Normals::iterator it = normals.find(indices[j]);
             if (it == normals.end())
             {
-                it = normals.insert(make_pair(indices[i], new std::vector<QVector3D>)).first;
+				it = normals.insert(make_pair(indices[j], new std::vector<QVector3D>)).first;
             }
             it->second->push_back(normal);
         }
 	}
 
-    _normals = new QVector3D[normals.size()];
+	_normals = new QVector3D[_vertices.size()];
+
+	//assert(_vertices.size() == normals.size());
 
     for (Normals::iterator it = normals.begin(); it != normals.end(); ++it)
     {
@@ -233,7 +239,8 @@ void Mesh::buildNormals()
             normal += vec->at(i);
         }
         normal.normalize();
-        _normals[it->first] = normal;
+		unsigned idx = it->first;
+		_normals[idx] = normal;
     }
 }
 
@@ -308,9 +315,23 @@ void Mesh::draw(bool drawAABB) const
 	glEnableClientState(GL_VERTEX_ARRAY);
 	if (drawAABB)
 		drawAxisAlignedBox(_min, _max);
+
+#ifdef USE_LIGHTING
+	glEnableClientState(GL_NORMAL_ARRAY);
+	glNormalPointer(GL_FLOAT, 0, (void*)_normals);
+#endif
+
 	//glVertexPointer(/* num components */ 3, GL_FLOAT, sizeof(QVector3D), &_vertices[0]);
 	glVertexPointer(3, GL_FLOAT, 0, &_vertices[0]);
+
+
+
 	glDrawElements(GL_TRIANGLES, _triangleIndices.size(), GL_UNSIGNED_INT, &_triangleIndices[0]);
 
+#ifdef USE_LIGHTING
+	glDisableClientState(GL_NORMAL_ARRAY);
+#endif
+
 	glDisableClientState(GL_VERTEX_ARRAY);
+
 }
