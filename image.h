@@ -35,7 +35,7 @@ public:
 	ColorType	maxColor(unsigned x, unsigned y, unsigned w, unsigned h) const;
 	ColorType	minColor(unsigned x, unsigned y, unsigned w, unsigned h) const;
 	void		insertAt(unsigned x, unsigned y, unsigned z, const Image& other);
-	float		computeMinZ(unsigned x, unsigned y, const Image &other);
+    float		computeMinZ(unsigned x, unsigned y, const Image &other) const;
 	void		triangle(QVector3D a, QVector3D b, QVector3D c, bool (&compare)(ColorType, ColorType), unsigned samples_per_pixel = 10);
 	QString		getName() const { return _name; }
 	void		recalcMinMax();

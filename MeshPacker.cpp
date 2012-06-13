@@ -41,7 +41,6 @@ void MeshPacker::run()
 		unsigned best_x = 0;
 		unsigned best_y = 0;
 
-		//collapse(2)
 		unsigned max_y = _nodes.getGeometry().y() - node->getTop()->getHeight();
 		unsigned max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();
 
@@ -50,7 +49,7 @@ void MeshPacker::run()
 		{
 			for (unsigned x = 0; x < max_x; x++)
 			{
-                int progress = progress_atom.fetchAndAddRelaxed(1);
+                int progress = progress_atom.fetchAndAddOrdered(1);
 				emit reportProgress(progress);
 
 				Image::ColorType z = base.computeMinZ(x, y, *(node->getBottom()));

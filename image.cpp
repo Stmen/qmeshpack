@@ -211,7 +211,7 @@ void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-float Image::computeMinZ(unsigned x, unsigned y, const Image &other)
+float Image::computeMinZ(unsigned x, unsigned y, const Image &other) const
 {
 	if ((x + other.getWidth() > _width) or (y + other.getHeight() > _height))
 		throw Exception("%s: images overlap", __FUNCTION__);

@@ -99,7 +99,11 @@ void GLView::paintGL()
 {
 	glMatrixMode(GL_MODELVIEW);
 	glLoadMatrixd(_cam.inverted().constData());
-	glLightfv(GL_LIGHT0, GL_POSITION, (float*)&_lightPos);
+
+#ifdef USE_LIGHTING
+    glEnable(GL_LIGHTING);
+	glLightfv(GL_LIGHT0, GL_POSITION, (float*)&_lightPos);    
+#endif
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -116,15 +120,14 @@ void GLView::paintGL()
 		max = vecmax(max, nodePos + node->getMesh()->getMax());
 
 		glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
+
 		_nodes.getNode(i)->getMesh()->draw(false);
 		glPopMatrix();
-
-		glEnableClientState(GL_VERTEX_ARRAY);
-		drawAxisAlignedBox(min, max);
-
-		glDisableClientState(GL_VERTEX_ARRAY);
 	}
 
+#ifdef USE_LIGHTING
+    glDisable(GL_LIGHTING);
+#endif
 	glColor3f(1., 1., 0.);
 	glEnableClientState(GL_VERTEX_ARRAY);
 	drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes.getGeometry());

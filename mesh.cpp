@@ -17,7 +17,7 @@ Mesh::Mesh(const char* off_filename) :
     _name = sl.at(sl.size() - 1).split(".").at(0);
 
     ifstream file;
-    file.open(off_filename);
+    file.open(off_filename, fstream::in);
 
     if (file.fail())
         throw Exception("%s: failed to open file %s", __FUNCTION__, off_filename);
@@ -61,17 +61,18 @@ Mesh::Mesh(const char* off_filename) :
 
     resetMinMax();
 
+    //#define MAX_BUFF_SIZE 1024
+    //char buff[MAX_BUFF_SIZE];
     // process vertices
     for(size_t i = 0; i < vertex_count and file.good(); i++)
-    {
-        getline(file, line);
-        iss.str(line);
+    {     
+        //getline(file, line);
+        //iss.str(line);
 
         float coord[3];
         for(unsigned i = 0; i < 3; i++)
         {
-            if (!(iss >> coord[i]))
-                throw Exception("%s: %s:%u failed to parse a vertex.", __FUNCTION__, off_filename, lineNumber);
+            file >> coord[i];
         }
 
 		_vertices.push_back(QVector3D(coord[0], coord[1], coord[2]));
@@ -82,10 +83,8 @@ Mesh::Mesh(const char* off_filename) :
     // process faces
     for(size_t i = 0; i < face_count and file.good(); i++)
     {
-        getline(file, line);
-        iss.str(line);
         int poly_type;
-        if(iss >> poly_type)
+        if(file >> poly_type)
         {
             if(poly_type != 3)
                 throw Exception("%s: in %s:%u polygon is not a triangle.", __FUNCTION__, off_filename, lineNumber);
@@ -93,7 +92,7 @@ Mesh::Mesh(const char* off_filename) :
             for(int i = 0; i < poly_type; i++)
             {
                 unsigned vertexIndex;
-                if(iss >> vertexIndex)
+                if(file >> vertexIndex)
 				{
 					_min = vecmin(_min, _vertices[vertexIndex]);
 					_max = vecmax(_max, _vertices[vertexIndex]);

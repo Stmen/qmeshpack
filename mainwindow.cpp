@@ -16,7 +16,7 @@
 #include "Exception.h"
 
 using namespace std;
-#define APP_NAME "NamelessApp"
+#define APP_NAME "QMeshPack"
 /*
  *      C
  *
@@ -287,15 +287,14 @@ void MainWindow::mainShowDefault()
 	mainWidget->setScaledContents(false);
 	Image img(1000, 700);
 	testTriangle1(&img);
-	img.dilate(10, Image::maxValue);
+    //img.dilate(10, Image::maxValue);
 
-
-	QFont font("times", 20);
+    QFont font("times", 30);
 	QPixmap pixmap = QPixmap::fromImage(img.toQImage(),  Qt::ThresholdDither);
 	QPainter painter(&pixmap);
 	painter.setFont(font);
 	painter.setPen(Qt::red);
-	painter.drawText(0, 0, width(), height(), 0, "test image");
+    painter.drawText(0, 0, width(), height(), 0, APP_NAME);
 	//painter.begin( );
 	// draw your image
 	painter.end();
