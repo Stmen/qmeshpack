@@ -112,6 +112,12 @@ Mesh::Mesh(const char* off_filename) :
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+Mesh::~Mesh()
+{
+    delete [] _normals;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::setVertex(unsigned idx, QVector3D newVertex)
 {
     if (idx >= numVertices())
@@ -187,9 +193,11 @@ void Mesh::recalcMinMax()
 
 #include <map>
 #include <vector>
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::buildNormals()
 {
-	std::map</* index = */unsigned, /* normals = */ std::vector<QVector3D>*> map;
+    typedef std::map</* index = */unsigned, /* normals = */ std::vector<QVector3D>*> Normals;
+    Normals normals;
 
 	for (unsigned i = 0; i < _triangleIndices.size(); i += 3)
 	{
@@ -203,9 +211,30 @@ void Mesh::buildNormals()
 
 
 		QVector3D normal = QVector3D::crossProduct(vertex[1] - vertex[0], vertex[2] - vertex[0]).normalized();
-
-
+        for (unsigned j = 0; j < 3; j++)
+        {
+            Normals::iterator it = normals.find(indices[i]);
+            if (it == normals.end())
+            {
+                it = normals.insert(make_pair(indices[i], new std::vector<QVector3D>)).first;
+            }
+            it->second->push_back(normal);
+        }
 	}
+
+    _normals = new QVector3D[normals.size()];
+
+    for (Normals::iterator it = normals.begin(); it != normals.end(); ++it)
+    {
+        std::vector<QVector3D>* vec = it->second;
+        QVector3D normal(0., 0., 0.);
+        for (unsigned i = 0; i < vec->size(); i++)
+        {
+            normal += vec->at(i);
+        }
+        normal.normalize();
+        _normals[it->first] = normal;
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

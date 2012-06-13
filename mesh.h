@@ -17,6 +17,7 @@ class Mesh
 public:
 
 	Mesh(const char* off_filename);
+    ~Mesh();
 	QVector3D	getMax() const { return _max; }
 	QVector3D   getMin() const { return _min; }
 	QVector3D	getGeometry() const { return _max - _min; }
@@ -54,6 +55,7 @@ public:
 private:
 
 	std::vector<QVector3D>	_vertices;  /// this array stores vertix triples of floats, which represent the vertices
+    QVector3D*  _normals;  /// this array stores vertix triples of floats, which represent the vertices
 	std::vector<unsigned>   _triangleIndices; /// this array hold index triples of the triangles.
 	QVector3D               _min; /// minimum x, y, z in this Mesh
 	QVector3D               _max; /// maximum x, y, z in this Mesh

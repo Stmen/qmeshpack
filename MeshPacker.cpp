@@ -1,8 +1,8 @@
 #include "MeshPacker.h"
 #include <cassert>
 #include <omp.h>
-#include <atomic>
-#include <future>
+#include <QAtomicInt>
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 MeshPacker::MeshPacker(MeshFilesModel &nodes, QObject *parent) :
@@ -31,8 +31,7 @@ size_t MeshPacker::maxProgress() const
 void MeshPacker::run()
 {
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y(), /* clear color = */ 0.);
-	std::atomic<size_t> progress_atom;
-	progress_atom = 0;
+    QAtomicInt progress_atom(0);
 	for (size_t i = 0; i < _nodes.numNodes(); i++)
 	{
 		Node* node = _nodes.getNode(i);
@@ -51,7 +50,7 @@ void MeshPacker::run()
 		{
 			for (unsigned x = 0; x < max_x; x++)
 			{
-				size_t progress = atomic_fetch_add(&progress_atom, (size_t)1);
+                int progress = progress_atom.fetchAndAddRelaxed(1);
 				emit reportProgress(progress);
 
 				Image::ColorType z = base.computeMinZ(x, y, *(node->getBottom()));
