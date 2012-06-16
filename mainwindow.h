@@ -25,21 +25,26 @@
 #include <QTextEdit>
 #include <QString>
 #include <QSplitter>
+#include <QStackedWidget>
+#include <QProgressBar>
 #include "Node.h"
 #include "MeshFilesModel.h"
 #include "vectorinputdialog.h"
 #include "MeshPacker.h"
+#include "ModelView.h"
 
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
 	MeshFilesModel* _modelMeshFiles;
 	QTreeView*      _viewMeshFiles;
+	ModelView*		_viewModel;
+	QProgressBar*	_progressWidget;
 	QToolBar*       _toolMain;
 	MeshPacker*		_threadPacker;
 	QTextEdit*		_console;
-	QWidget*		_centralWidget;
 
+	QStackedWidget*	_stack;
 
 	// actions
     QAction*			_actExit;
@@ -76,12 +81,12 @@ public slots:
     void processNodes();
     void aboutThisApp();
 	void mainNodeSelected(const QModelIndex& index);
+	void mainShowResults();
     void closeEvent(QCloseEvent *event);
 	void menuContextNode(const QPoint &pos);
 	void processNodesDone();
 	void consolePrint(QString str, unsigned level = 0);
-	void mainShowDefault();
-	void mainShowResults();
+	void createStack();
 
 private:
 

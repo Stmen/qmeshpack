@@ -93,6 +93,9 @@ MainWindow::MainWindow() : QMainWindow()
 	_defaultSamplesPerPixel = qvariant_cast<unsigned>(settings.value("samples_per_pixel", 10));
 	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));
 
+	_stack = new QStackedWidget(this);
+	setCentralWidget(_stack);
+
 	createMeshList();
 
 	// creating Mesh Packer	
@@ -110,7 +113,9 @@ MainWindow::MainWindow() : QMainWindow()
 
 	createActions();
 	createMenus();
-	mainShowDefault();
+
+	createStack();
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,47 +249,25 @@ void MainWindow::createStatusBar()
 void MainWindow::mainNodeSelected(const QModelIndex & index)
 {
 	Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
-	if (node)
-	{
-		//cout << "selected " << info->getMesh()->getName().toUtf8().constData() << endl;
-
-		QLabel* imageLabel1 = new QLabel();
-		imageLabel1->setBackgroundRole(QPalette::Base);
-		//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
-		//imageLabel->setScaledContents(false);
-		imageLabel1->setScaledContents(true);
-		imageLabel1->setPixmap(QPixmap::fromImage(node->getTop()->toQImage(), Qt::ThresholdDither));
-		imageLabel1->setObjectName(node->getTop()->getName());
-
-		QLabel* imageLabel2 = new QLabel();
-		imageLabel2->setBackgroundRole(QPalette::Base);
-		//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
-		//imageLabel->setScaledContents(false);
-		imageLabel2->setScaledContents(true);
-		imageLabel2->setPixmap(QPixmap::fromImage(node->getBottom()->toQImage(), Qt::ThresholdDither));
-		imageLabel2->setObjectName(node->getBottom()->getName());
-
-		QWidget* widget = new QWidget;
-		QGridLayout* layout = new QGridLayout;
-		widget->setLayout(layout);
-
-		layout->addWidget(imageLabel1, 0, 0);
-		layout->addWidget(imageLabel2, 1, 0);
-		layout->addWidget(new GLView(node, _modelMeshFiles->getGeometry()), 0, 1, 2, 1);
-		widget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
-
-		setCentralWidget(widget);
-	}
+	_viewModel->setNode(node, _modelMeshFiles->getGeometry());
+	_stack->setCurrentIndex(2);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::mainShowDefault()
+void MainWindow::mainShowResults()
 {
-	QLabel* mainWidget = new QLabel();
-	mainWidget->setBackgroundRole(QPalette::Base);
+	_stack->setCurrentIndex(1);
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void MainWindow::createStack()
+{
+	QLabel* label = new QLabel();
+	label->setBackgroundRole(QPalette::Base);
 	//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
 	//imageLabel->setScaledContents(false);
-	mainWidget->setScaledContents(false);
+	label->setScaledContents(false);
 	Image img(1000, 700);
 	testTriangle1(&img);
     //img.dilate(10, Image::maxValue);
@@ -295,37 +278,19 @@ void MainWindow::mainShowDefault()
 	painter.setFont(font);
 	painter.setPen(Qt::red);
     painter.drawText(0, 0, width(), height(), 0, APP_NAME);
-	//painter.begin( );
-	// draw your image
 	painter.end();
 
-	mainWidget->setPixmap(pixmap);
-	mainWidget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
-	setCentralWidget(mainWidget);
-}
+	label->setPixmap(pixmap);
+	label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+	_stack->addWidget(label);
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::mainShowResults()
-{
-	QTableWidget* tableWidget = new QTableWidget(/* rows = */ _modelMeshFiles->numNodes(), /* columns = */ 2);
+	_stack->addWidget(new GLView(_modelMeshFiles));
+	_viewModel = new ModelView(this);
 
-	for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
-	{
-		Node* node = _modelMeshFiles->getNode(i);
-		tableWidget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
-		tableWidget->setItem(i, 0, new QTableWidgetItem(node->getMesh()->getName()));
-		QVector3D pos = node->getPos();
-		tableWidget->setItem(i, 1, new QTableWidgetItem(
-								 QString("(%1, %2, %3)").arg(	QString::number(pos.x()),
-																QString::number(pos.y()),
-																QString::number(pos.z()))));
+	_stack->addWidget(_viewModel);
+	_progressWidget = new QProgressBar();
 
-		QSplitter* splitter = new QSplitter(Qt::Vertical, this);
-
-		splitter->addWidget(tableWidget);
-		splitter->addWidget(new GLView(*_modelMeshFiles));
-		setCentralWidget(splitter);
-	}
+	_stack->addWidget(_progressWidget);
 }
 
 
@@ -352,7 +317,7 @@ void MainWindow::removeCurrentNode()
 {
 	_viewMeshFiles->clearSelection();
 	_modelMeshFiles->removeRows(_currMeshIndex.row(), 1, QModelIndex());
-	mainShowDefault();
+	createStack();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -415,7 +380,9 @@ void MainWindow::dialogSetDefaultSamplesPerPixel()
 {
 	QString msg = tr("Setting default samples per pixel to ");
 	bool ok;
-	double resolution = QInputDialog::getInteger(this, msg, tr("new resolution in real pixels"), _defaultSamplesPerPixel,
+	double resolution = QInputDialog::getInteger(this, msg,
+												 tr("new resolution in real pixels"),
+												 _defaultSamplesPerPixel,
 												 0, 1000, 1, &ok);
 	if (ok)
 	{
@@ -423,7 +390,6 @@ void MainWindow::dialogSetDefaultSamplesPerPixel()
 		consolePrint(msg + QString::number(resolution));
 	}
 }
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogSetDefaultDilation()
@@ -438,7 +404,6 @@ void MainWindow::dialogSetDefaultDilation()
 		consolePrint(msg + QString::number(value));
 	}
 }
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogAddMesh()
@@ -482,6 +447,7 @@ void MainWindow::processNodes()
 
 	if (_modelMeshFiles->numNodes() != 0)
 	{		
+		_stack->setCurrentIndex(3);
 		QVector3D boxGeometry = _modelMeshFiles->getGeometry();
 		for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
 		{
@@ -505,20 +471,14 @@ void MainWindow::processNodes()
 			}
 		}
 
-		QProgressBar* progressBar = new QProgressBar();
-		progressBar->setRange(0, _threadPacker->maxProgress());
-		connect(_threadPacker, SIGNAL(reportProgress(int)), progressBar, SLOT(setValue(int)));
-
-		QRect rect = centralWidget()->geometry();
-		progressBar->setGeometry(rect);
-		setCentralWidget(progressBar);
+		_progressWidget->setRange(0, _threadPacker->maxProgress());
+		connect(_threadPacker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)));
 
 		consolePrint(tr("starting processing thread"));		
 		_threadPacker->start();
 	}
 	else
 	{
-		mainShowDefault();
 		consolePrint(tr("aborted: nothing to process"), 2);
 	}
 }
@@ -526,7 +486,7 @@ void MainWindow::processNodes()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::processNodesDone()
 {
-	mainShowResults();
+	_stack->setCurrentIndex(1);
 	consolePrint("done");
 }
 

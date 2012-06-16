@@ -14,7 +14,9 @@ public:
 	void		setGeometry(QVector3D geometry);
 	QVector3D	getGeometry() const { return _geometry; }
 	size_t		numNodes() const { return _nodes.size(); }
+	void		clear() { _nodes.clear(); }
 
+	explicit MeshFilesModel(QObject *parent = 0);
 	explicit MeshFilesModel(QVector3D geometry, QObject *parent = 0);
 	virtual ~MeshFilesModel();
 	Qt::ItemFlags flags(const QModelIndex & index) const;

@@ -2,21 +2,36 @@
 #include <QDebug>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GLView::GLView(const MeshFilesModel &nodes, QWidget* parent) :
+GLView::GLView(QWidget* parent) :
+	QGLWidget(parent),
+	_nodes(&_singleNodeWrapper),
+	_mouseLast(0, 0),
+	_mouseSensitivity(0.01),
+	_moveSensetivity(10.),
+	_wheelSensitivity(0.6)
+{
+	setFocusPolicy(Qt::StrongFocus);
+	setAutoBufferSwap(false);
+	_cam.setToIdentity();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+GLView::GLView(const MeshFilesModel* nodes, QWidget* parent) :
 	QGLWidget(parent),	
-	_singleNodeWrapper(nodes.getGeometry()),
+	_singleNodeWrapper(nodes->getGeometry()),
 	_nodes(nodes),
 	_mouseLast(0, 0),
 	_mouseSensitivity(0.01),
-	_moveSensetivity(0.1)
+	_moveSensetivity(10.),
+	_wheelSensitivity(0.6)
 {
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
 	_cam.setToIdentity();
 
-	if (nodes.numNodes() > 0)
+	if (nodes->numNodes() > 0)
 	{
-		const Mesh* mesh = nodes.getNode(0)->getMesh();
+		const Mesh* mesh = nodes->getNode(0)->getMesh();
 		QVector3D offset = mesh->getMin() + ((mesh->getMax() - mesh->getMin()) / 2) + QVector3D(0., 0., mesh->getMax().z());
 		_cam.translate(offset);
 	}
@@ -26,7 +41,7 @@ GLView::GLView(const MeshFilesModel &nodes, QWidget* parent) :
 GLView::GLView(Node* node, QVector3D geometry, QWidget *parent) :
 	QGLWidget(parent),
 	_singleNodeWrapper(geometry),
-	_nodes(_singleNodeWrapper),
+	_nodes(&_singleNodeWrapper),
 	_mouseLast(0, 0),
 	_mouseSensitivity(0.01),
 	_moveSensetivity(0.1)
@@ -47,8 +62,21 @@ GLView::~GLView()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void GLView::setNode(Node* node, QVector3D geometry)
+{
+	_singleNodeWrapper.clear();
+	_singleNodeWrapper.setGeometry(geometry);
+	_singleNodeWrapper.addNode(node);
+	_nodes = &_singleNodeWrapper;
+	_cam.setToIdentity();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::initializeGL()
 {
+	if (not isValid())
+		return;
+
 	glDisable(GL_TEXTURE_2D);
 	//glDisable(GL_COLOR_MATERIAL);
 	glEnable(GL_DEPTH_TEST);	
@@ -69,7 +97,7 @@ void GLView::initializeGL()
 	GLfloat ambientLight[] = { 0.2f, 0.2f, 0.2f, 1.0f };
 	GLfloat diffuseLight[] = { 0.8, 0.8, 0.8, 1.f };
 	GLfloat specularLight[] = { 0.5f, 0.5f, 0.5f, 1.0f };	
-	_lightPos = QVector4D(0., 0., _nodes.getGeometry().z(), 1);
+	_lightPos = QVector4D(0., 0., _nodes->getGeometry().z(), 1);
 	// Assign created components to GL_LIGHT0
 	glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
@@ -84,6 +112,9 @@ void GLView::initializeGL()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::resizeGL(int width, int height)
 {
+	if (not isValid())
+		return;
+
 	//int side = qMin(width, height);
 	//glViewport((width - side) / 2, (height - side) / 2, side, side);
 	glViewport(0, 0, width, height);
@@ -97,6 +128,9 @@ void GLView::resizeGL(int width, int height)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::paintGL()
 {
+	if (not isValid())
+		return;
+
 	glMatrixMode(GL_MODELVIEW);
 	glLoadMatrixd(_cam.inverted().constData());
 
@@ -110,9 +144,9 @@ void GLView::paintGL()
 	QVector3D min(INFINITY, INFINITY, INFINITY), max(-INFINITY, -INFINITY, -INFINITY);
 	glColor3f(1., 0., 0.);
 
-	for (unsigned i = 0; i < _nodes.numNodes(); i++)
+	for (unsigned i = 0; i < _nodes->numNodes(); i++)
 	{
-		Node* node = _nodes.getNode(i);
+		Node* node = _nodes->getNode(i);
 		QVector3D nodePos = node->getPos();
 
 		glPushMatrix();
@@ -121,7 +155,7 @@ void GLView::paintGL()
 
 		glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
 
-		_nodes.getNode(i)->getMesh()->draw(false);
+		_nodes->getNode(i)->getMesh()->draw(false);
 		glPopMatrix();
 	}
 
@@ -130,7 +164,7 @@ void GLView::paintGL()
 #endif
 	glColor3f(1., 1., 0.);
 	glEnableClientState(GL_VERTEX_ARRAY);
-	drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes.getGeometry());
+	drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes->getGeometry());
 	glDisableClientState(GL_VERTEX_ARRAY);
 
 	//*/
@@ -178,42 +212,35 @@ void GLView::mouseMoveEvent(QMouseEvent *event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::keyPressEvent(QKeyEvent* event)
 {
-	//qDebug() << "key pressed " << event->key();
 	switch(event->key())
 	{	
-			//qDebug() << "Up";
-			_cam.translate(_cam.row(1).toVector3D() * _moveSensetivity);
-			updateGL();
-			break;
-
-		case Qt::Key_A:
-			qDebug() << "Left";
-			_cam.translate(_cam.row(0).toVector3D() * -_moveSensetivity);
+		case Qt::Key_W:
+			_cam.translate(_cam.column(1).toVector3D() * _moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_S:
-			//qDebug() << "Down";
-			_cam.translate(_cam.row(1).toVector3D() * -_moveSensetivity);
-			//_posCam.setZ(_posCam.z() - _moveSensetivity);
+			_cam.translate(_cam.column(1).toVector3D() * -_moveSensetivity);
+			updateGL();
+			break;
+
+		case Qt::Key_A:
+			_cam.translate(_cam.column(0).toVector3D() * -_moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_D:
-			//qDebug() << "Right";
-			_cam.translate(_cam.row(0).toVector3D() * _moveSensetivity);
+			_cam.translate(_cam.column(0).toVector3D() * _moveSensetivity);
 			updateGL();
 			break;
 
-		case Qt::Key_Space:
-			//qDebug() << "Forward";
-			_cam.translate(_cam.row(2).toVector3D() * -_moveSensetivity);
+		case Qt::Key_Space:			
+			_cam.translate(_cam.column(2).toVector3D() * -_moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_Shift:
-			//qDebug() << "Backward";
-			_cam.translate(_cam.row(2).toVector3D() * -_moveSensetivity);
+			_cam.translate(_cam.column(2).toVector3D() * -_moveSensetivity);
 			updateGL();
 			break;
 
@@ -226,6 +253,6 @@ void GLView::keyPressEvent(QKeyEvent* event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::wheelEvent(QWheelEvent *event)
 {
-	_cam.translate(0., 0., (float)event->delta() * 0.6);
+	_cam.translate(0., 0., (float)event->delta() * _wheelSensitivity);
 	updateGL();
 }

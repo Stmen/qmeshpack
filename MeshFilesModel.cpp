@@ -1,5 +1,11 @@
 #include "MeshFilesModel.h"
 
+
+MeshFilesModel::MeshFilesModel(QObject* parent) :
+	QAbstractItemModel(parent)
+{
+}
+
 MeshFilesModel::MeshFilesModel(QVector3D geometry, QObject *parent) :
 	QAbstractItemModel(parent), _geometry(geometry)
 {

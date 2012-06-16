@@ -13,28 +13,31 @@ class GLView : public QGLWidget
 	Q_OBJECT // must include this if you use Qt signals/slots
 
 	MeshFilesModel				_singleNodeWrapper;
-	const MeshFilesModel&		_nodes;
-	QMatrix4x4			_cam;
-	QPoint				_mouseLast;
-	float				_mouseSensitivity, _moveSensetivity;
-	QVector4D			_lightPos;
+	const MeshFilesModel*		_nodes;
+	QMatrix4x4					_cam;
+	QPoint						_mouseLast;
+	float						_mouseSensitivity, _moveSensetivity, _wheelSensitivity;
+	QVector4D					_lightPos;
 
 public:
 
-	GLView(const MeshFilesModel& nodes, QWidget *parent = NULL);
-	 GLView(Node* node, QVector3D geometry, QWidget *parent = NULL);
-	 virtual ~GLView();
+	GLView(QWidget* parent = NULL);
+	GLView(const MeshFilesModel* nodes, QWidget* parent = NULL);
+	GLView(Node* node, QVector3D geometry, QWidget *parent = NULL);
+	virtual ~GLView();
 
-	 inline QSize minimumSizeHint() const { return QSize(100, 100); }
-	 inline QSize sizeHint() const { return QSize(600, 400); }
+	inline QSize minimumSizeHint() const { return QSize(100, 100); }
+	inline QSize sizeHint() const { return QSize(600, 400); }
+
+	void setNode(Node* node, QVector3D geometry);
 
 protected:
 
-	 void initializeGL();
-	 void resizeGL(int width, int height);
-	 void paintGL();
-	 void mousePressEvent(QMouseEvent *event);	 
-	 void mouseMoveEvent(QMouseEvent *event);
-	 void keyPressEvent(QKeyEvent *event);
-	 void wheelEvent(QWheelEvent *event);
+	void initializeGL();
+	void resizeGL(int width, int height);
+	void paintGL();
+	void mousePressEvent(QMouseEvent *event);
+	void mouseMoveEvent(QMouseEvent *event);
+	void keyPressEvent(QKeyEvent *event);
+	void wheelEvent(QWheelEvent *event);
 };

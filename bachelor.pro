@@ -15,7 +15,8 @@ SOURCES += main.cpp \
     MeshFilesModel.cpp \
     MeshPacker.cpp \
     GLView.cpp \
-    Node.cpp
+    Node.cpp \
+    ModelView.cpp
 HEADERS += mainwindow.h \
     mesh.h \
     Exception.h \
@@ -26,7 +27,8 @@ HEADERS += mainwindow.h \
     MeshFilesModel.h \
     MeshPacker.h \
     GLView.h \
-    Node.h
+    Node.h \
+    ModelView.h
 RESOURCES += \
     icons.qrc
 
