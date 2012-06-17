@@ -609,7 +609,7 @@ void MainWindow::consolePrint(QString str, unsigned level)
 
 	QString text = QDateTime::currentDateTime().toString("%1[hh:mm:ss] %2%3").arg(prefix).arg(str).arg(endHtml);
 	QTextCursor cursor = _console->textCursor();
-	cursor.setPosition(0, QTextCursor::End);
+	cursor.movePosition(QTextCursor::End);
 	_console->insertHtml(text);
 }
 
