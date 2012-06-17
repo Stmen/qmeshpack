@@ -52,6 +52,8 @@ class MainWindow : public QMainWindow
     QAction*            _actProcess;
 	QAction*			_actSetBoxGeometry;	
 	QAction*			_actShowResults;
+	QAction*			_actSaveScreenshot;
+	QAction*			_actSaveResults;
 
 	// specific actions that work on the current _currMeshIndex
 	QModelIndex         _currMeshIndex;
@@ -70,6 +72,7 @@ class MainWindow : public QMainWindow
     void createActions();
 	void createMenus();
 	void createStatusBar();
+	void createStack();
 
 public slots:
 
@@ -85,12 +88,11 @@ public slots:
     void closeEvent(QCloseEvent *event);
 	void menuContextNode(const QPoint &pos);
 	void processNodesDone();
-	void consolePrint(QString str, unsigned level = 0);
-	void createStack();
+	void consolePrint(QString str, unsigned level = 0);	
+	void saveScreenshot();
+	void dialogSaveResults();
 
 private:
-
-
 
 private slots:
 

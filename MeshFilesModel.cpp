@@ -1,11 +1,13 @@
 #include "MeshFilesModel.h"
+#include "util.h"
 
-
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 MeshFilesModel::MeshFilesModel(QObject* parent) :
 	QAbstractItemModel(parent)
 {
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 MeshFilesModel::MeshFilesModel(QVector3D geometry, QObject *parent) :
 	QAbstractItemModel(parent), _geometry(geometry)
 {
@@ -69,11 +71,6 @@ QVariant MeshFilesModel::headerData(int section, Qt::Orientation orientation, in
 		}
 	}
 	return QVariant();
-}
-
-QString toString(QVector3D vec)
-{
-	return QString("(%1, %2, %3)").arg(vec.x()).arg(vec.y()).arg(vec.z());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -152,12 +149,13 @@ void MeshFilesModel::addNode(Node* node)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MeshFilesModel::addMesh(const char* filename, unsigned samples_per_pixel, unsigned dilation)
+Node* MeshFilesModel::addMesh(const char* filename, unsigned samples_per_pixel, unsigned dilation)
 {
 	Node* node = new Node(filename, samples_per_pixel, dilation);
 	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
 	_nodes.push_back(node);
 	endInsertRows();
+	return node;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

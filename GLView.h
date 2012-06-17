@@ -5,7 +5,6 @@
 #include <QMouseEvent>
 #include "Node.h"
 #include <QMatrix4x4>
-#include <QQuaternion>
 #include "MeshFilesModel.h"
 
 class GLView : public QGLWidget

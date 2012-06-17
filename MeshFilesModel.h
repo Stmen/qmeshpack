@@ -35,7 +35,7 @@ signals:
 	//void		nodeRemoved(unsigned idx);
 public slots:
 
-	void addMesh(const char *filename, unsigned samples_per_pixel = 10, unsigned dilation = 0);
+	Node* addMesh(const char *filename, unsigned samples_per_pixel = 10, unsigned dilation = 0);
 	void addNode(Node* node);
 
 private:

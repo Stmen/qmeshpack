@@ -1,5 +1,4 @@
-#ifndef MODELVIEW_H
-#define MODELVIEW_H
+#pragma once
 
 #include <QWidget>
 #include <QLabel>
@@ -14,8 +13,8 @@ class ModelView : public QWidget
 	QLabel*	_labelBottom;
 	GLView*	_glView;
 
-
 public:
+
 	explicit ModelView(QWidget *parent = 0);
 	
 signals:
@@ -24,5 +23,3 @@ public slots:
 
 	void setNode(Node* node, QVector3D geometry);
 };
-
-#endif // MODELVIEW_H

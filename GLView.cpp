@@ -1,4 +1,5 @@
 #include "GLView.h"
+#include "config.h"
 #include <QDebug>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -28,13 +29,7 @@ GLView::GLView(const MeshFilesModel* nodes, QWidget* parent) :
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
 	_cam.setToIdentity();
-
-	if (nodes->numNodes() > 0)
-	{
-		const Mesh* mesh = nodes->getNode(0)->getMesh();
-		QVector3D offset = mesh->getMin() + ((mesh->getMax() - mesh->getMin()) / 2) + QVector3D(0., 0., mesh->getMax().z());
-		_cam.translate(offset);
-	}
+	_cam.translate(QVector3D(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2.4));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -50,10 +45,7 @@ GLView::GLView(Node* node, QVector3D geometry, QWidget *parent) :
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
 	_cam.setToIdentity();
-	//_cam.translate(0, 0, 20);
-	const Mesh* mesh = node->getMesh();
-	QVector3D offset = mesh->getMin() + ((mesh->getMax() - mesh->getMin()) / 2) + QVector3D(0., 0., mesh->getMax().z());
-	_cam.translate(offset);
+	_cam.translate(QVector3D(geometry.x() / 2, geometry.y() / 2, geometry.z() * 2.4));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +61,8 @@ void GLView::setNode(Node* node, QVector3D geometry)
 	_singleNodeWrapper.addNode(node);
 	_nodes = &_singleNodeWrapper;
 	_cam.setToIdentity();
+	_cam.translate(QVector3D(geometry.x() / 2, geometry.y() / 2, geometry.z() * 2.4));
+	updateGL();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -197,10 +191,15 @@ void GLView::mouseMoveEvent(QMouseEvent *event)
 		QPoint diff = event->pos() - _mouseLast;
 		//qDebug() << "mouseMove " << diff;
 		QMatrix4x4 mat;
-		mat.setToIdentity();
+		mat.setToIdentity();				
+		mat.translate(_nodes->getGeometry() / 2.);
 		mat.rotate(diff.x(), _cam.column(1).toVector3D());
 		mat.rotate(diff.y(), _cam.column(0).toVector3D());
+		mat.translate(_nodes->getGeometry() / -2.);
+
+		//_cam.translate(_nodes->getGeometry() / -2.);
 		_cam = mat * _cam; // camera centered on (0. 0. 0.)
+		//_cam.translate(_nodes->getGeometry() / 2.);
 
 		//_cam.rotate(diff.x(), 0., 1., 0.);
 		//_cam.rotate(diff.y(), 1., 0., 0.);

@@ -28,6 +28,8 @@ public:
 	void		scale(const QVector3D factor); /// scales the Mesh by some factors.
 	void		translate(const QVector3D offset);
 	QString		getName() const { return _name; }
+	void		setName(QString name) { _name = name; }
+	QString		getFilename() const { return _filename; }
 	void		recalcMinMax();
 	void		draw(bool drawAABB = true) const;
 	void		buildNormals();
@@ -59,7 +61,7 @@ private:
 	std::vector<unsigned>   _triangleIndices; /// this array hold index triples of the triangles.
 	QVector3D               _min; /// minimum x, y, z in this Mesh
 	QVector3D               _max; /// maximum x, y, z in this Mesh
-    QString                 _name;
+	QString                 _name, _filename;
 
 };
 

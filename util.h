@@ -1,4 +1,5 @@
 #pragma once
+#include <QString>
 #include <QVector3D>
 #include <cmath>
 
@@ -32,6 +33,10 @@ inline QVector3D vecmin(QVector3D v1, QVector3D v2)
 					 ((v1.z() < v2.z()) ? v1.z() : v2.z()));
 }
 
+inline QString toString(QVector3D vec)
+{
+	return QString("(%1, %2, %3)").arg(vec.x()).arg(vec.y()).arg(vec.z());
+}
 
 template<class T>
 class Iterator

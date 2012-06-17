@@ -9,7 +9,9 @@
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Image::Image(unsigned width, unsigned height, ColorType clearColor) : _width(width), _height(height)
+Image::Image(unsigned width, unsigned height, ColorType clearColor) :
+	_width(width),
+	_height(height)
 {
 	if (width == 0 or _height == 0)
         throw Exception("bad geometry");
@@ -249,6 +251,13 @@ void Image::recalcMinMax()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+bool circlePredicate(unsigned x, unsigned y, unsigned radius)
+{
+	return (x * x + y * y) < radius;
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 {
 	if (dilationValue == 0)
@@ -277,7 +286,7 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 				{
 					for (unsigned k = y - dilationValue; k < (y + dilationValue + 1); k++)
 					{
-						if (compare(newColor, newImage.at(j, k)))
+						if (circlePredicate(x, y, dilationValue) and compare(newColor, newImage.at(j, k)))
 							newImage.setPixel(j, k, newColor);
 					}
 				}

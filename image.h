@@ -42,6 +42,7 @@ public:
 	void		dilate(int dilationValue, bool (&compare)(ColorType, ColorType));
 
 private:
+
 	unsigned    _width;
 	unsigned    _height;
 	float*      _data;

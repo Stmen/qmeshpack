@@ -7,14 +7,20 @@
 #include <cmath>
 #include <cassert>
 #include <QStringList>
+#include "config.h"
+
 using namespace std;
 
 Mesh::Mesh(const char* off_filename) :
 	_min(INFINITY, INFINITY, INFINITY),
 	_max(-INFINITY, -INFINITY, -INFINITY)
 {    
-    QStringList sl = QString(off_filename).split('/');
-    _name = sl.at(sl.size() - 1).split(".").at(0);
+	_filename = off_filename;
+
+	{
+		QStringList sl = _filename.split('/');
+		_name = sl.at(sl.size() - 1).split(".").at(0);
+	}
 
     ifstream file;
     file.open(off_filename, fstream::in);
