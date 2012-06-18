@@ -171,6 +171,6 @@ void MeshFilesModel::nodeChanged(unsigned i)
 	if (i < _nodes.size())
 	{
 		QModelIndex idx = createIndex(i, 0);
-		dataChanged(idx, idx);
+        emit dataChanged(idx, idx);
 	}
 }

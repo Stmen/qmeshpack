@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <omp.h>
+#include <QtConcurrentRun>
+#include <QtConcurrentMap>
 #include "image.h"
 #include "mesh.h"
 #include "GLView.h"
@@ -459,6 +461,12 @@ void MainWindow::dialogSetDefaultDilation()
 	}
 }
 
+struct NodeInfo
+{
+    QString filename;
+    QVector3D position;
+    unsigned spp, dilation;
+};
 #define EXT_DOTTED "."RESULTS_APPEND_EXTENSION
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogAddMesh()
@@ -491,19 +499,41 @@ void MainWindow::dialogAddMesh()
 				if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
 					throw Exception("Unable to open file %s: %s", filename.toUtf8().constData(), file.errorString().toUtf8().constData());
 
+                std::vector<NodeInfo> nodeInfos;
+
 				while (not file.atEnd() and file.isReadable())
 				{
 					QList<QByteArray> list = file.readLine().split(';');
-					if (list.empty()) // ignore unparsable
+                    if (list.empty()) // ignore unparsable
 						continue;
 
 					QString  off_filename = list.at(0).trimmed();
-					Node* node = _modelMeshFiles->addMesh(off_filename.toUtf8().constData(),
-														  _defaultSamplesPerPixel, _defaultDilationValue);
+                    if (off_filename.isEmpty())
+                        continue;
 
 					double x = list.at(1).toDouble(), y = list.at(2).toDouble(), z = list.at(3).toDouble();
-					node->setPos(QVector3D(x, y, z));
-				}
+                    NodeInfo n = {off_filename, QVector3D(x, y, z), _defaultSamplesPerPixel, _defaultDilationValue };
+                    nodeInfos.push_back(n);
+                }
+
+                unsigned sz = nodeInfos.size();
+                Node* nodes[sz];
+
+                //#pragma omp parallel for
+                for (unsigned i = 0; i < sz; i++)
+                {
+                    NodeInfo info = nodeInfos[i];
+                    nodes[i] = new Node(info.filename, info.spp, info.dilation);
+                    nodes[i]->setPos(info.position);
+                }
+
+                for (unsigned i = 0; i < sz; i++)
+                {
+                    QVector3D pos = nodes[i]->getPos();
+                    consolePrint(QString("opened \"%1\" at (%2 %3 %4)").arg(nodes[i]->getMesh()->getName())
+                                 .arg(pos.x()).arg(pos.y()).arg(pos.z()));
+                    _modelMeshFiles->addNode(nodes[i]);
+                }
 			}
 #endif
 			else

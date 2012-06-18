@@ -7,7 +7,7 @@ struct Node
 {
 	/// creates top and bottom z-buffer for the OFF file @param filename.
 	/// @param spp determines how fine The z value is determined.
-	Node(const char* filename, unsigned spp = 10, unsigned dilation = 10);
+    Node(QString filename, unsigned spp = 10, unsigned dilation = 10);
 	~Node();
 
 	void setSamplesPerPixel(unsigned spp);

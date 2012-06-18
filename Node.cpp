@@ -3,10 +3,10 @@
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Node::Node(const char* filename, unsigned spp, unsigned dilation)
+Node::Node(QString filename, unsigned spp, unsigned dilation)
 	: _samplesPerPixel(spp), _dilation(dilation)
 {
-	_mesh = new Mesh(filename);
+    _mesh = new Mesh(filename.toUtf8().constData());
 	auto_ptr<Mesh> mesh_guard(_mesh);
 
 	#pragma omp parallel

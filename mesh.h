@@ -16,7 +16,7 @@ class Mesh
 {    
 public:
 
-	Mesh(const char* off_filename);
+    Mesh(const char* off_filename);
     ~Mesh();
 	QVector3D	getMax() const { return _max; }
 	QVector3D   getMin() const { return _min; }
