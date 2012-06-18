@@ -19,7 +19,7 @@
 #include "Exception.h"
 #include "config.h"
 using namespace std;
-
+#include <math.h>
 #define VIEW_WELCOME 0
 #define VIEW_RESULTS 1
 #define VIEW_MODEL 2
@@ -474,8 +474,8 @@ void MainWindow::dialogAddMesh()
     QString filename = QFileDialog::getOpenFileName(this,
 		tr("Open Mesh File"), "", tr(
 #ifdef RESULTS_APPEND_EXTENSION
-		"All supported files (*.off *.OFF *"EXT_DOTTED");; "
-		"Mesh file list (*"EXT_DOTTED");; "
+        "All supported files (*.off *.OFF *" EXT_DOTTED ");; "
+        "Mesh file list (*" EXT_DOTTED ");; "
 #endif
 		"OFF files (*.off *.OFF);; "
 		"All Files (*.*)"));
@@ -607,8 +607,7 @@ void MainWindow::processNodes()
 	consolePrint(tr("processing meshes"));
 
 	if (_modelMeshFiles->numNodes() != 0)
-	{		
-		_stack->setCurrentIndex(VIEW_PROGRESS);
+	{				
 		QVector3D boxGeometry = _modelMeshFiles->getGeometry();
 
 		// sanity checks.
@@ -628,9 +627,9 @@ void MainWindow::processNodes()
 			}
 		}
 
+        consolePrint(tr("starting processing thread"));
+        _stack->setCurrentIndex(VIEW_PROGRESS);
 		_progressWidget->setRange(0, _threadPacker->maxProgress());		
-
-		consolePrint(tr("starting processing thread"));		
 		_threadPacker->start();
 	}
 	else
@@ -642,6 +641,7 @@ void MainWindow::processNodes()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::processNodesDone()
 {
+    //_threadPacker->exit();
 	_stack->setCurrentIndex(VIEW_RESULTS);
 	consolePrint("done");
 }

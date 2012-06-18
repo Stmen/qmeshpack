@@ -37,34 +37,51 @@ void MeshPacker::run()
 		Node* node = _nodes.getNode(i);
 		emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()));
 
-		Image::ColorType best_z = base.computeMinZ(0, 0, *(node->getBottom()));
+        Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
 		unsigned best_y = 0;
 
 		unsigned max_y = _nodes.getGeometry().y() - node->getTop()->getHeight();
 		unsigned max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();
 
-		#pragma omp parallel for collapse(2)
+        #pragma omp parallel for collapse(2)
 		for (unsigned y = 0; y < max_y; y++)
 		{
 			for (unsigned x = 0; x < max_x; x++)
 			{
-                int progress = progress_atom.fetchAndAddOrdered(1);
-				emit reportProgress(progress);
-
+                emit reportProgress(progress_atom.fetchAndAddOrdered(1));
 				Image::ColorType z = base.computeMinZ(x, y, *(node->getBottom()));
 				#pragma omp critical
 				{
 					if (z < best_z)
 					{
 						best_z = z;
-						best_x = x;
-						best_y = y;
+                        best_y = y;
+						best_x = x;						
 					}
+                    else if (z == best_z)
+                    {
+                        if (y < best_y)
+                        {
+                            best_y = y;
+                            best_x = x;
+                        }
+                        else if (y == best_y)
+                        {
+                            if (x < best_x)
+                            {
+                                best_x = x;
+                            }
+                        }
+                    }
 				}
 			}
 		}
-		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
+
+        assert(best_x + node->getTop()->getWidth() <= base.getWidth());
+        assert(best_y + node->getTop()->getHeight() <= base.getHeight());
+
+        base.insertAt(best_x, best_y, best_z, *(node->getTop()));
 
 		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
 				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
@@ -73,4 +90,5 @@ void MeshPacker::run()
 	}
 
 	emit processingDone();
+    #pragma omp flush
 }
