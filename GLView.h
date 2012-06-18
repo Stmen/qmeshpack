@@ -12,7 +12,7 @@ class GLView : public QGLWidget
 	Q_OBJECT // must include this if you use Qt signals/slots
 
 	MeshFilesModel				_singleNodeWrapper;
-	const MeshFilesModel*		_nodes;
+	MeshFilesModel*		_nodes;
 	QMatrix4x4					_cam;
 	QPoint						_mouseLast;
 	float						_mouseSensitivity, _moveSensetivity, _wheelSensitivity;
@@ -21,10 +21,11 @@ class GLView : public QGLWidget
 public:
 
 	GLView(QWidget* parent = NULL);
-	GLView(const MeshFilesModel* nodes, QWidget* parent = NULL);
+	GLView(MeshFilesModel *nodes, QWidget* parent = NULL);
 	GLView(Node* node, QVector3D geometry, QWidget *parent = NULL);
 	virtual ~GLView();
 
+	MeshFilesModel* getCurrentModel() const { return _nodes; }
 	inline QSize minimumSizeHint() const { return QSize(100, 100); }
 	inline QSize sizeHint() const { return QSize(600, 400); }
 

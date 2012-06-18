@@ -69,6 +69,7 @@ void MeshPacker::run()
 		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
 				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
 		node->setPos(newPos);
+		_nodes.nodeChanged(i);
 	}
 
 	emit processingDone();

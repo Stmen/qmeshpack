@@ -164,3 +164,13 @@ void MeshFilesModel::setGeometry(QVector3D geometry)
 	_geometry = geometry;
 	emit geometryChanged();
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void MeshFilesModel::nodeChanged(unsigned i)
+{
+	if (i < _nodes.size())
+	{
+		QModelIndex idx = createIndex(i, 0);
+		dataChanged(idx, idx);
+	}
+}

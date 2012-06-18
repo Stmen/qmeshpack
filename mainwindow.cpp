@@ -23,6 +23,26 @@ using namespace std;
 #define VIEW_MODEL 2
 #define VIEW_PROGRESS 3
 
+void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
+{
+	for (double i = from; i < from + M_PI * 2; i += 0.8)
+	{
+		double x1 = cos(i), y1 = sin(i);
+		double x2 = cos(i + 0.9), y2 = sin(i + 0.8);
+
+		/*
+		QVector3D a = QVector3D(x1 * r1,			y1 * r1, rand() & 0xFF) + offset;
+		QVector3D b = QVector3D(x2 * r1,			y2 * r1, rand() & 0xFF) + offset;
+		QVector3D c = QVector3D((x1 + x2) / 2 * r2, (y1 + y2) / 2 * r2, rand() & 0xFF) + offset;
+		*/
+		QVector3D a = offset + QVector3D(0., 0., rand() & 0xFF);
+		QVector3D b = QVector3D(x2 * r1,			y2 * r1, rand() & 0xFF) + offset;
+		QVector3D c = QVector3D((x1 + x2) / 2 * r2, (y1 + y2) / 2 * r2, rand() & 0xFF) + offset;
+		img->triangle(a, b, c, Image::maxValue);
+	}
+}
+
+
 /*
  *      C
  *
@@ -37,6 +57,9 @@ void testTriangle1(Image* img)
 	QVector3D b = QVector3D(100., 300., 100.);
 	QVector3D c = QVector3D(800., 600., 250.);
     img->triangle(a, b, c, Image::maxValue);
+
+
+
 }
 
 void testTriangle2(Image* img)
@@ -282,11 +305,14 @@ void MainWindow::createStack()
 	//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
 	//imageLabel->setScaledContents(false);
 	label->setScaledContents(false);
-	Image img(1000, 700);
-	testTriangle1(&img);
+	Image img(700, 700);
+	//testTriangle1(&img);
 	//img.dilate(10, Image::maxValue);
+	drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0, 150, 300);
+	//drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0.2, 50, 300);
+	//drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0.4, 50, 300);
 
-	QFont font("times", 30);
+	QFont font("times", 20);
 	QPixmap pixmap = QPixmap::fromImage(img.toQImage(),  Qt::ThresholdDither);
 	QPainter painter(&pixmap);
 	painter.setFont(font);
@@ -334,7 +360,6 @@ void MainWindow::menuContextNode(const QPoint & pos)
 		menu.insertAction(0, _actMeshScale);
 		menu.insertAction(0, _actMeshTranslate);
 		//menu.addSeparator();
-		//menu.addAction("Copy", )
 		menu.exec(_viewMeshFiles->mapToGlobal(pos));
 	}
 }
@@ -357,7 +382,7 @@ void MainWindow::transformCurrentMesh()
 	if (code == 1) // accepted
 	{
 		Node* node = (Node*)_modelMeshFiles->data(_currMeshIndex, Qt::UserRole).value<void*>();
-		QDebug(&msg) << dialog.getResult();
+		msg += QString("(%1 %2 %3)").arg(dialog.getResult().x()).arg(dialog.getResult().y()).arg(dialog.getResult().z());
 		consolePrint(msg);
 		node->translateMesh(dialog.getResult());
 		mainNodeSelected(_currMeshIndex);
@@ -374,7 +399,7 @@ void MainWindow::scaleCurrentMesh()
 	if (code == 1) // accepted
 	{
 		Node* node = (Node*)_modelMeshFiles->data(_currMeshIndex, Qt::UserRole).value<void*>();
-		QDebug(&msg) << dialog.getResult();
+		msg += QString("(%1 %2 %3)").arg(dialog.getResult().x()).arg(dialog.getResult().y()).arg(dialog.getResult().z());
 		consolePrint(msg);
 		node->scaleMesh(dialog.getResult());
 		mainNodeSelected(_currMeshIndex);
@@ -397,6 +422,7 @@ void MainWindow::dialogSetBoxGeometry()
 			QDebug(&msg) << dialog.getResult();
 			consolePrint(msg);
 			_modelMeshFiles->setGeometry(dialog.getResult());
+			_viewModel->getGLView()->getCurrentModel()->setGeometry(dialog.getResult());
 		}
 		else
 			consolePrint(tr("Bad input"), 2);
@@ -433,14 +459,15 @@ void MainWindow::dialogSetDefaultDilation()
 	}
 }
 
+#define EXT_DOTTED "."RESULTS_APPEND_EXTENSION
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogAddMesh()
 {
     QString filename = QFileDialog::getOpenFileName(this,
 		tr("Open Mesh File"), "", tr(
 #ifdef RESULTS_APPEND_EXTENSION
-		"All supported files (*.off *.OFF *."RESULTS_APPEND_EXTENSION");; "
-		"Mesh file list (*."RESULTS_APPEND_EXTENSION");; "
+		"All supported files (*.off *.OFF *"EXT_DOTTED");; "
+		"Mesh file list (*"EXT_DOTTED");; "
 #endif
 		"OFF files (*.off *.OFF);; "
 		"All Files (*.*)"));
@@ -503,7 +530,7 @@ void MainWindow::dialogSaveResults()
 	QString filename = QFileDialog::getSaveFileName(this,
 		tr("Save main window screenshot"), "", tr(
 #ifdef RESULTS_APPEND_EXTENSION
-		"Mesh file list (*."RESULTS_APPEND_EXTENSION");; "
+		"Mesh file list (*"EXT_DOTTED");; "
 #endif
 		"All Files (*.*)"));
 
@@ -515,7 +542,7 @@ void MainWindow::dialogSaveResults()
 		QString ext = l.at(l.size() - 1).toLower();
 
 		if (ext != RESULTS_APPEND_EXTENSION )
-			filename += RESULTS_APPEND_EXTENSION;
+			filename += EXT_DOTTED;
 #endif
 
 	   QFile file(filename);

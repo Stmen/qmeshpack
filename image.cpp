@@ -97,11 +97,13 @@ void Image::setPixel(unsigned x, unsigned y, ColorType pixel)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 QImage Image::toQImage() const
-{
-    assert(_maxColor >= _minColor);
+{	
+	assert(_maxColor >= _minColor);
     QImage image(_width, _height, QImage::Format_RGB888);
 
-	float colorStep = 255. / (_maxColor - _minColor);
+	float colorStep = 0;
+	if(_maxColor != _minColor)
+		colorStep = 255. / (_maxColor - _minColor);
 
     for (unsigned x = 0; x < _width; x++)
     {
@@ -254,6 +256,7 @@ void Image::recalcMinMax()
 bool circlePredicate(unsigned x, unsigned y, unsigned radius)
 {
 	return (x * x + y * y) < radius;
+	//return true;
 
 }
 
@@ -286,7 +289,7 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 				{
 					for (unsigned k = y - dilationValue; k < (y + dilationValue + 1); k++)
 					{
-						if (circlePredicate(x, y, dilationValue) and compare(newColor, newImage.at(j, k)))
+						if (circlePredicate(j - x, k - y, dilationValue) and compare(newColor, newImage.at(j, k)))
 							newImage.setPixel(j, k, newColor);
 					}
 				}
@@ -299,7 +302,7 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	_width = newImage._width;
 	_maxColor = newImage._maxColor;
 	_minColor = newImage._minColor;
-	//recalcMinMax();
+	/*
 	if (_minColor != 0)
 	{
 		for (unsigned i = 0; i < _width * _height; i++)
@@ -307,6 +310,7 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 		_minColor -= _minColor;
 		_maxColor -= _minColor;
 	}
+	// */
 	recalcMinMax();
 }
 

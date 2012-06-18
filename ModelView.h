@@ -16,10 +16,12 @@ class ModelView : public QWidget
 public:
 
 	explicit ModelView(QWidget *parent = 0);
-	
+	GLView*	getGLView() const { return _glView; }
+
 signals:
 	
 public slots:
 
 	void setNode(Node* node, QVector3D geometry);
+
 };

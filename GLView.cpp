@@ -14,10 +14,11 @@ GLView::GLView(QWidget* parent) :
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
 	_cam.setToIdentity();
+	connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GLView::GLView(const MeshFilesModel* nodes, QWidget* parent) :
+GLView::GLView(MeshFilesModel* nodes, QWidget* parent) :
 	QGLWidget(parent),	
 	_singleNodeWrapper(nodes->getGeometry()),
 	_nodes(nodes),
@@ -30,6 +31,8 @@ GLView::GLView(const MeshFilesModel* nodes, QWidget* parent) :
 	setAutoBufferSwap(false);
 	_cam.setToIdentity();
 	_cam.translate(QVector3D(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2.4));
+	connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
+	connect(nodes, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +49,7 @@ GLView::GLView(Node* node, QVector3D geometry, QWidget *parent) :
 	setAutoBufferSwap(false);
 	_cam.setToIdentity();
 	_cam.translate(QVector3D(geometry.x() / 2, geometry.y() / 2, geometry.z() * 2.4));
+	connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +65,7 @@ void GLView::setNode(Node* node, QVector3D geometry)
 	_singleNodeWrapper.addNode(node);
 	_nodes = &_singleNodeWrapper;
 	_cam.setToIdentity();
-	_cam.translate(QVector3D(geometry.x() / 2, geometry.y() / 2, geometry.z() * 2.4));
+	_cam.translate(QVector3D(geometry.x() / 2, geometry.y() / 2, geometry.z() * 4));
 	updateGL();
 }
 

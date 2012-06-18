@@ -100,7 +100,6 @@ private slots:
 	void transformCurrentMesh();
 	void scaleCurrentMesh();
 
-
 public:
     MainWindow();
 	virtual ~MainWindow();
