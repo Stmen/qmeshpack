@@ -57,6 +57,7 @@ void MeshPacker::run()
 					//Update progress
 					if (_shouldStop)
 					{
+						emit report(tr("aborting!"), 0);
 						abort = true;
 						#pragma omp flush (abort)
 					}

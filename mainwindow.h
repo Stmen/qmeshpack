@@ -36,7 +36,7 @@
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
-	NodeModel* _modelMeshFiles;
+	NodeModel*		_modelMeshFiles;
 	QTreeView*      _viewMeshFiles;
 	ModelView*		_viewModel;
 	QProgressBar*	_progressWidget;
@@ -53,6 +53,7 @@ class MainWindow : public QMainWindow
     QAction*            _actProcess;
 	QAction*			_actSetBoxGeometry;	
 	QAction*			_actShowResults;
+	QAction*			_actShowProgress;
 	QAction*			_actSaveScreenshot;
 	QAction*			_actSaveResults;
 
@@ -89,9 +90,9 @@ public slots:
     void closeEvent(QCloseEvent *event);
 	void menuContextNode(const QPoint &pos);
 	void processNodesDone();
-	void consolePrint(QString str, unsigned level = 0);	
+	void consolePrint(QString str, unsigned level = 0) const;
 	void saveScreenshot();
-	void dialogSaveResults();
+	void dialogSaveResults() const;
 private:
 
 private slots:

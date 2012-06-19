@@ -10,7 +10,7 @@
 #include <QImage>
 #include <QtConcurrentRun>
 #include <QtConcurrentMap>
-#include <QtConcurrentMap>
+#include <QWidgetAction>
 #include <functional>
 #include <cstdlib>
 #include <iostream>
@@ -24,7 +24,6 @@ using namespace std;
 #define VIEW_WELCOME 0
 #define VIEW_RESULTS 1
 #define VIEW_MODEL 2
-#define VIEW_PROGRESS 3
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
@@ -63,7 +62,7 @@ MainWindow::MainWindow() : QMainWindow()
 	// creating Mesh Packer	
 	_threadPacker = new MeshPacker(*_modelMeshFiles, this);
 	connect(_threadPacker, SIGNAL(processingDone()), this, SLOT(processNodesDone()));
-	connect(_threadPacker, SIGNAL(report(QString)), this, SLOT(consolePrint(QString)));
+	connect(_threadPacker, SIGNAL(report(QString, unsigned)), this, SLOT(consolePrint(QString, unsigned)));
 
 	// create console
 	QDockWidget* dockWidget = new QDockWidget(tr("Console"), this);
@@ -72,10 +71,9 @@ MainWindow::MainWindow() : QMainWindow()
 	dockWidget->setWidget(_console);
 	addDockWidget(Qt::BottomDockWidgetArea, dockWidget);
 
-
-	createActions();
-	createMenus();
 	createStack();
+	createActions();
+	createMenus(); // menus depend on existing actions and some widgets like _progress*
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +106,7 @@ void MainWindow::saveScreenshot()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-	QSettings settings("Konstantin", APP_NAME);
+	QSettings settings(APP_VENDOR, APP_NAME);
 	settings.setValue("geometry", saveGeometry());
 	settings.setValue("windowState", saveState());
 	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
@@ -120,7 +118,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::createMeshList()
 {
-	QSettings settings("Konstantin", APP_NAME);
+	QSettings settings(APP_VENDOR, APP_NAME);
 	QVector3D boxGeometry = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
 	// create mesh list
 	_modelMeshFiles = new NodeModel(boxGeometry, this);
@@ -131,6 +129,8 @@ void MainWindow::createMeshList()
 	_viewMeshFiles->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(menuContextNode(const QPoint &)));
 	connect(_viewMeshFiles, SIGNAL(clicked(const QModelIndex &)), this, SLOT(mainNodeSelected(const QModelIndex &)));
+	QItemSelectionModel* selectionModel = _viewMeshFiles->selectionModel();
+	connect(selectionModel, SIGNAL(currentChanged(const QModelIndex &, const QModelIndex &)), this, SLOT(mainNodeSelected(const QModelIndex &)));
 	QString mname = tr("Mesh list");
 	QDockWidget* dockWidget = new QDockWidget(mname, this);
 	dockWidget->setObjectName(mname);
@@ -145,6 +145,7 @@ void MainWindow::createActions()
 	QStyle* style = QApplication::style();
 
 	_actStop = new QAction(QIcon(":/trolltech/styles/commonstyle/images/stop-32.png"), tr("&Stop"), this);
+	_actStop->setEnabled(false);
 	connect(_actStop, SIGNAL(triggered()), _threadPacker, SLOT(shouldStop()));
 
 	_actExit = new QAction(QIcon(), tr("&Exit"), this);
@@ -177,6 +178,10 @@ void MainWindow::createActions()
 	_actShowResults = new QAction(QIcon(), tr("Show &results"), this);
 	_actShowResults->setStatusTip(tr("Shows results in the main window"));
 	connect(_actShowResults, SIGNAL(triggered()), this, SLOT(mainShowResults()));
+
+	_actShowProgress = new QAction(QIcon(), tr("Show &progress"), this);
+	_actShowProgress->setStatusTip(tr("Shows results in the main window"));
+	connect(_actShowProgress, SIGNAL(triggered()), this, SLOT(mainShowProgress()));
 
 	_actSaveScreenshot = new QAction(QIcon(":images/images/camera.png"), tr("Save &screenshot"), this);
 	_actSaveScreenshot->setStatusTip(tr("Saves a screenshot of a main window"));
@@ -214,6 +219,7 @@ void MainWindow::createMenus()
 
 	menu = new QMenu(tr("&View"));
 	menu->insertAction(0, _actShowResults);
+	menu->insertAction(0, _actShowProgress);
 	menuBar()->addMenu(menu);
 
 	menu = new QMenu(tr("&Settings"));
@@ -233,6 +239,12 @@ void MainWindow::createMenus()
 	//_toolMain->insertAction(0, _actSaveScreenshot);
 	_toolMain->insertAction(0, _actSaveResults);
 	_toolMain->insertAction(0, _actStop);
+	_toolMain->addSeparator();
+
+	QWidgetAction* action = new QWidgetAction(this);
+	// setup progressbar here
+	action->setDefaultWidget(_progressWidget);
+	_toolMain->addAction(action);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -249,7 +261,7 @@ void MainWindow::createStack()
 	//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
 	//imageLabel->setScaledContents(false);
 	label->setScaledContents(true);
-	Image img(700, 700);
+	Image img(700, 700, 0);
 	//testTriangle1(&img);
 	//img.dilate(10, Image::maxValue);
 	drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0, 150, 300);
@@ -273,8 +285,9 @@ void MainWindow::createStack()
 	_stack->addWidget(_viewModel);
 
 	_progressWidget = new QProgressBar();
+	_progressWidget->setEnabled(false);
+
 	connect(_threadPacker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)));
-	_stack->addWidget(_progressWidget);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -311,10 +324,14 @@ void MainWindow::menuContextNode(const QPoint & pos)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::removeCurrentNode()
 {
-	_viewMeshFiles->clearSelection();
-	_stack->setCurrentIndex(VIEW_RESULTS);
-	_modelMeshFiles->removeRows(_currMeshIndex.row(), 1, QModelIndex());
-	createStack();
+	if (_currMeshIndex.isValid())
+	{
+		_viewMeshFiles->clearSelection();
+		_stack->setCurrentIndex(VIEW_RESULTS);
+		unsigned idx = _currMeshIndex.row();
+		consolePrint(tr("removing node \"%1\"").arg(_modelMeshFiles->getNode(idx)->getMesh()->getName()), 0);
+		_modelMeshFiles->removeRows(idx, 1, QModelIndex());
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -401,6 +418,7 @@ void MainWindow::dialogSetDefaultDilation()
 	}
 }
 
+/*
 struct NodeInfo
 {
     QString filename;
@@ -409,7 +427,6 @@ struct NodeInfo
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-/*
 void MainWindow::loadList(QString filename)
 {
 	QFile file(filename);
@@ -459,11 +476,11 @@ void MainWindow::loadList(QString filename)
 void MainWindow::dialogAddMesh()
 {
 	QFileDialog dialog(this);
-	//dialog.setDirectory(QDir::homePath());
+		//dialog.setDirectory(QDir::homePath());
 	dialog.setFileMode(QFileDialog::ExistingFiles);
 	dialog.setNameFilter(tr("OFF meshes (*.off *.OFF);; "
-							// "All files (*.*)"
-							));
+								// "All files (*.*)"
+								));
 	if (not dialog.exec())
 		return;
 
@@ -493,12 +510,11 @@ void MainWindow::dialogAddMesh()
 	}
 }
 
-#define EXT_DOTTED "." RESULTS_APPEND_EXTENSION
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::dialogSaveResults()
+void MainWindow::dialogSaveResults() const
 {
-	static QString suffix;
-	QString filename = QFileDialog::getSaveFileName(this, tr("Choose a file to save to"), "",
+	QString suffix;
+	QString filename = QFileDialog::getSaveFileName(0, tr("Choose a file to save to"), "",
 			"Text files (*.txt *.TXT);; OFF Files(*.off *.OFF)",
 			&suffix);
 
@@ -523,11 +539,11 @@ void MainWindow::dialogSaveResults()
 		QFile file(filename);
 		if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
 		{
-			QMessageBox::information(this, tr("Unable to open file"), file.errorString());
+			QMessageBox::information(0, tr("Unable to open file"), file.errorString());
 			return;
 		}
 
-		consolePrint(QString("saving results to a list \"%1\"").arg(filename));
+		consolePrint(tr("saving results to a list \"%1\"").arg(filename));
 		QTextStream out(&file);
 
 		for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
@@ -543,16 +559,22 @@ void MainWindow::dialogSaveResults()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::processNodes()
 {
-	if (_threadPacker->isRunning())
-	{
-		consolePrint(tr("processing thread is still running..."));
-		return;
-	}
+	_actAddFile->setEnabled(false);
+	_actMeshRemove->setEnabled(false);
+	_actMeshScale->setEnabled(false);
+	_actMeshTranslate->setEnabled(false);
+	_actProcess->setEnabled(false);
+	_actSaveResults->setEnabled(false);
+	_actSetBoxGeometry->setEnabled(false);
+	_actStop->setEnabled(true);
 
 	consolePrint(tr("processing meshes"));
-
-	if (_modelMeshFiles->numNodes() != 0)
-	{				
+	if (_modelMeshFiles->numNodes() == 0)
+	{
+		consolePrint(tr("aborting: nothing to process"), 2);
+	}
+	else
+	{
 		QVector3D boxGeometry = _modelMeshFiles->getGeometry();
 
 		// sanity checks.
@@ -573,27 +595,36 @@ void MainWindow::processNodes()
 		}
 
 		_modelMeshFiles->sortByBBoxSize();
-        consolePrint(tr("starting processing thread"));
-        _stack->setCurrentIndex(VIEW_PROGRESS);
-		_progressWidget->setRange(0, _threadPacker->maxProgress());		
+		consolePrint(tr("starting processing thread"));
+		//_stack->setCurrentIndex(VIEW_PROGRESS);
+		_progressWidget->setRange(0, _threadPacker->maxProgress());
+		_progressWidget->setEnabled(true);
+
 		_threadPacker->start();
-	}
-	else
-	{
-		consolePrint(tr("aborted: nothing to process"), 2);
 	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::processNodesDone()
 {
-    //_threadPacker->exit();
 	_stack->setCurrentIndex(VIEW_RESULTS);
-	consolePrint("done");
+	_progressWidget->setEnabled(false);
+	_progressWidget->setValue(0);
+
+	_actAddFile->setEnabled(true);
+	_actMeshRemove->setEnabled(true);
+	_actMeshScale->setEnabled(true);
+	_actMeshTranslate->setEnabled(true);
+	_actProcess->setEnabled(true);
+	_actSaveResults->setEnabled(true);
+	_actSetBoxGeometry->setEnabled(true);
+	_actStop->setEnabled(false);
+
+	consolePrint("processing done");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::consolePrint(QString str, unsigned level)
+void MainWindow::consolePrint(QString str, unsigned level) const
 {
 	// html colors: http://www.w3schools.com/html/html_colornames.asp
 	const static QString alertHtml = "<font color=\"Red\">";
@@ -622,5 +653,5 @@ void MainWindow::consolePrint(QString str, unsigned level)
 void MainWindow::aboutThisApp()
 {
     const char* msg = "This is \"" APP_NAME "\" by Konstantin Schlese, nulleight@gmail.com";
-    QMessageBox::information(this, tr(APP_NAME), tr(msg));
+	QMessageBox::information(this, tr(APP_NAME), tr(msg));
 }

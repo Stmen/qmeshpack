@@ -2,6 +2,7 @@
 #include <QImage>
 #include "mesh.h"
 
+class ImageRegion;
 class Image
 {    
 
@@ -19,7 +20,8 @@ public:
 	static bool maxValue(ColorType imageZ, ColorType newZ);
 
 	Image(const Mesh &mesh, Mode mode, unsigned dilationValue = 0);
-	Image(unsigned width, unsigned height, ColorType clearColor = 0.);
+	Image(unsigned width, unsigned height);
+	Image(unsigned width, unsigned height, ColorType clearColor);
     ~Image();
 
 	unsigned	getWidth() const { return _width; }
@@ -40,6 +42,8 @@ public:
 	QString		getName() const { return _name; }
 	void		recalcMinMax();
 	void		dilate(int dilationValue, bool (&compare)(ColorType, ColorType));
+	ImageRegion	select(unsigned x, unsigned y, unsigned width, unsigned height);
+	Image*		operator-(const ImageRegion& imgregion);
 
 private:
 
@@ -49,5 +53,29 @@ private:
 	float       _minColor;
 	float       _maxColor;
 	QString		_name;
+
+	friend class ImageRegion;
+};
+
+class ImageRegion
+{
+public:
+	friend class Image;
+
+	Image* operator+(const Image* other);
+
+	unsigned x() const { return _x; }
+	unsigned y() const { return _y; }
+	unsigned getWidth() const { return _width; }
+	unsigned getHeight() const { return _height; }
+	Image::ColorType at(unsigned x, unsigned y) const { return _parent->at(x, y); }
+
+private:
+
+
+	const Image* _parent;
+	unsigned _x, _y, _width, _height;
+
+	ImageRegion(const Image* parent, unsigned x, unsigned y, unsigned width, unsigned height);
 };
 

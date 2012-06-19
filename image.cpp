@@ -9,6 +9,19 @@
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+Image::Image(unsigned width, unsigned height) :
+	_width(width),
+	_height(height),
+	_minColor(INFINITY),
+	_maxColor(-INFINITY)
+{
+	if (width == 0 or _height == 0)
+		throw Exception("bad geometry");
+
+	_data = new ColorType[width * height];
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 Image::Image(unsigned width, unsigned height, ColorType clearColor) :
 	_width(width),
 	_height(height)
@@ -441,4 +454,53 @@ void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(C
 			d++;
         }
     }
+}
+
+Image* Image::operator -(const ImageRegion& other)
+{
+	assert(_width == other.getWidth());
+	assert(_height == other.getHeight());
+
+	Image* img = new Image(_width, _height);
+	size_t numPixels = _width * _height;
+	memcpy(img->_data, _data, numPixels * sizeof(_data[0]));
+	for (unsigned y = 0; y < _height; y++)
+	{
+		for (unsigned x = 0; x < _width; x++)
+		{
+			Image::ColorType color = other.at(x, y);
+			img->_minColor = std::min(img->_minColor, color);
+			img->_maxColor = std::min(img->_maxColor, color);
+			img->_data[y * _width + x] -= color;
+		}
+	}
+
+	return img;
+}
+
+ImageRegion	Image::select(unsigned x, unsigned y, unsigned width, unsigned height)
+{
+	assert(x < width and y < height and width <= _width and height <= _height);
+	return ImageRegion(this, x, y, width, height);
+}
+
+ImageRegion::ImageRegion(const Image* parent, unsigned x, unsigned y, unsigned width, unsigned height) :
+	_parent(parent), _x(x), _y(y), _width(width), _height(height)
+{
+}
+
+Image* ImageRegion::operator +(const Image* other)
+{
+	Image* img = new Image(_width, _height);
+	for (unsigned y = 0; y < _height; y++)
+	{
+		for (unsigned x = 0; x < _width; x++)
+		{
+			Image::ColorType color = other->at(x, y);
+			img->_minColor = std::min(img->_minColor, color);
+			img->_maxColor = std::min(img->_maxColor, color);
+			img->setPixel(x, y, _parent->at(_x + x, _y + y) + color);
+		}
+	}
+	return img;
 }
