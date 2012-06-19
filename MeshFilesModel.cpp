@@ -162,21 +162,22 @@ void NodeModel::setGeometry(QVector3D geometry)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void NodeModel::nodeChanged(unsigned i)
+void NodeModel::nodePositionChanged(unsigned i)
 {
 	if (i < _nodes.size())
 	{
-		QModelIndex idx = createIndex(i, 0);
+        QModelIndex idx = createIndex(i, /* columnt with position = */ 1);
         emit dataChanged(idx, idx);
 	}
 }
 
-bool lessBBoxSize(Node* n1, Node* n2)
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+static bool greaterVolume(Node* n1, Node* n2)
 {
 	QVector3D g1 = n1->getMesh()->getGeometry();
 	QVector3D g2 = n2->getMesh()->getGeometry();
 
-	return (g1.x() * g1.y() * g1.z()) < (g2.x() * g2.y() * g2.z());
+    return (g1.x() * g1.y() * g1.z()) > (g2.x() * g2.y() * g2.z());
 }
 
 
@@ -184,7 +185,7 @@ bool lessBBoxSize(Node* n1, Node* n2)
 void NodeModel::sortByBBoxSize()
 {
 	beginResetModel();
-	std::sort(_nodes.begin(), _nodes.end(), lessBBoxSize);
+    std::sort(_nodes.begin(), _nodes.end(), greaterVolume);
 	//emit dataChanged(createIndex(0, 0), createIndex(_nodes.size() - 1, 0););
 	endResetModel();
 }

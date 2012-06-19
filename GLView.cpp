@@ -53,7 +53,8 @@ void GLView::setNode(const Node* node)
 	_node = node;
 	_cam.setToIdentity();
 	QVector3D geom = node->getMesh()->getGeometry();
-	_cam.translate(QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 3));
+    QVector3D pos = node->getPos() + QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 3);
+    _cam.translate(pos);
 	updateGL();
 }
 
@@ -195,16 +196,27 @@ void GLView::mouseMoveEvent(QMouseEvent *event)
 
 	if(event->buttons() & Qt::LeftButton)
 	{
-		QVector3D geometry = (_single) ?  _node->getMesh()->getGeometry() : _nodes->getGeometry();
+        QVector3D origin, geometry;
+        if(_single)
+        {
+            origin = _node->getPos();
+            geometry = _node->getMesh()->getGeometry();
+        }
+        else
+        {
+            origin = QVector3D(0., 0., 0.);
+            geometry = _nodes->getGeometry();
+        }
 
-		mat.translate(geometry / 2.);
+        QVector3D offset = origin + geometry / 2.;
+        mat.translate(offset);
 
 		if (delta.x())
 			mat.rotate(delta.x(), _cam.column(1).toVector3D());
 		if (delta.y())
 			mat.rotate(delta.y(), _cam.column(0).toVector3D());
 
-		mat.translate(geometry / -2.);
+        mat.translate(-offset);
 
 		//_cam.translate(_nodes->getGeometry() / -2.);
 		_cam = mat * _cam; // camera centered on (0. 0. 0.)

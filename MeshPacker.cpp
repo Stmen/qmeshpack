@@ -62,8 +62,8 @@ void MeshPacker::run()
 						#pragma omp flush (abort)
 					}
 
-					emit reportProgress(progress_atom.fetchAndAddOrdered(1));
 					Image::ColorType z = base.computeMinZ(x, y, *(node->getBottom()));
+                    emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
 
 					#pragma omp critical
 					{
@@ -109,7 +109,7 @@ void MeshPacker::run()
         base.insertAt(best_x, best_y, best_z, *(node->getTop()));
 
 		node->setPos(newPos);
-		_nodes.nodeChanged(i);
+        _nodes.nodePositionChanged(i);
 	}
 
 	emit processingDone();

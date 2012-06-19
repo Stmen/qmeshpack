@@ -28,7 +28,7 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
 {
-	for (double i = from; i < from + M_PI * 2; i += 0.8)
+    for (double i = from; i < from + 3.1415926f * 2; i += 0.8)
 	{
 		double x1 = cos(i), y1 = sin(i);
 		double x2 = cos(i + 0.9), y2 = sin(i + 0.8);

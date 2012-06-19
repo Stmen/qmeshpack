@@ -39,7 +39,7 @@ public slots:
 
 	Node* addMesh(const char *filename, unsigned dilation);
 	void addNode(Node* node);
-	void nodeChanged(unsigned i);
+	void nodePositionChanged(unsigned i);
 
 private:
 
