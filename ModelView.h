@@ -1,17 +1,19 @@
 #pragma once
 
-#include <QWidget>
+#include <QSplitter>
 #include <QLabel>
 #include "Node.h"
 #include "GLView.h"
 
-class ModelView : public QWidget
+class ModelView : public QSplitter
 {
 	Q_OBJECT
 
 	QLabel*	_labelTop;
 	QLabel*	_labelBottom;
 	GLView*	_glView;
+
+	bool	_uiScaleImages;
 
 public:
 
@@ -22,6 +24,6 @@ signals:
 	
 public slots:
 
-	void setNode(Node* node, QVector3D geometry);
+	void setNode(Node* node);
 
 };

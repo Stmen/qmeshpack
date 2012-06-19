@@ -1,35 +1,38 @@
 #include "ModelView.h"
 #include <QGridLayout>
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 ModelView::ModelView(QWidget *parent) :
-	QWidget(parent)
-{
+	QSplitter(parent),
+	_uiScaleImages(false)
+{	
+
 	_labelTop = new QLabel();
 	_labelTop->setBackgroundRole(QPalette::Base);
-	//_labelTop->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
-	//_labelTop->setScaledContents(false);
-	_labelTop->setScaledContents(true);
-
+	_labelTop->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+	_labelTop->setScaledContents(_uiScaleImages);
 
 	_labelBottom = new QLabel();
 	_labelBottom->setBackgroundRole(QPalette::Base);
-	//_labelBottom->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
-	//_labelBottom->setScaledContents(false);
-	_labelBottom->setScaledContents(true);
+	_labelBottom->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+	_labelBottom->setScaledContents(_uiScaleImages);
 
+	setOrientation(Qt::Horizontal);
+	QSplitter* splitter = new QSplitter(this);
+	splitter->setOrientation(Qt::Vertical);
+	splitter->addWidget(_labelTop);
+
+	splitter->addWidget(_labelBottom);
+	addWidget(splitter);
 
 	_glView = new GLView();
+	addWidget(_glView);
 
-	QGridLayout* layout = new QGridLayout;
-	setLayout(layout);
-
-	layout->addWidget(_labelTop, 0, 0);
-	layout->addWidget(_labelBottom, 1, 0);
-	layout->addWidget(_glView, 0, 1, 2, 1);
 	setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 }
 
-void ModelView::setNode(Node *node, QVector3D geometry)
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void ModelView::setNode(Node *node)
 {
 	_labelTop->setPixmap(QPixmap::fromImage(node->getTop()->toQImage(), Qt::ThresholdDither));
 	_labelTop->setObjectName(node->getTop()->getName());
@@ -37,5 +40,5 @@ void ModelView::setNode(Node *node, QVector3D geometry)
 	_labelBottom->setPixmap(QPixmap::fromImage(node->getBottom()->toQImage(), Qt::ThresholdDither));
 	_labelBottom->setObjectName(node->getBottom()->getName());
 
-	_glView->setNode(node, geometry);
+	_glView->setNode(node);
 }

@@ -21,7 +21,7 @@ Image::Image(unsigned width, unsigned height, ColorType clearColor) :
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Image::Image(const Mesh& mesh, Mode mode, unsigned samples_per_pixel, unsigned dilationValue)
+Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue)
 {
 	QVector3D geometry = mesh.getMax() - mesh.getMin();
 	if (geometry.x() < 1. or geometry.y() < 1. or geometry.z() < 1.)
@@ -40,11 +40,10 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned samples_per_pixel, unsigned d
 			{
 				Triangle tri = it.get();
 				triangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
-						 Image::maxValue, samples_per_pixel);
+						 Image::maxValue);
 			}			
-			//recalcMinMax();
 			assert(fabs(_maxColor - geometry.z()) < 1.);
-			dilate(dilationValue, Image::maxValue);
+			dilate(dilationValue, Image::maxValue);			
 			break;
 
 		case Bottom:
@@ -54,11 +53,11 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned samples_per_pixel, unsigned d
 			{
 				Triangle tri = it.get();
 				triangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
-						 Image::minValue, samples_per_pixel);
+						 Image::minValue);
 			}
-			//recalcMinMax();
 			assert(fabs(_minColor) < 1.);
 			dilate(dilationValue, Image::minValue);
+			assert(fabs(_minColor) < 1.);
 			break;
 
 		default:
@@ -82,14 +81,17 @@ void Image::clear(float value)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-bool Image::pixelIsInside(float x, float y)
+bool Image::pixelIsInside(int x, int y)
 {
-    return x >= 0 and x < (float)_width and y >= 0. and y < (float)_height;
+	return x >= 0 and x < (float)_width and y >= 0 and y < (float)_height;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Image::setPixel(unsigned x, unsigned y, ColorType pixel)
 {
+	assert(x < _width);
+	assert(y < _height);
+
     _data[y * _width + x] = pixel;
     _minColor = std::min(_minColor, pixel);
     _maxColor = std::max(_maxColor, pixel);
@@ -109,7 +111,8 @@ QImage Image::toQImage() const
     {
         for (unsigned y = 0; y < _height; y++)
         {
-			int color = ((_data[y * _width + x] - _minColor) * colorStep);
+			ColorType colorValue = _data[y * _width + x];
+			int color = ((colorValue - _minColor) * colorStep);
 			assert(color >= 0 and color < 256);
 			unsigned rgbColor =  (color << 16) | (color << 8) | color;
             image.setPixel(x, y, rgbColor);
@@ -253,9 +256,9 @@ void Image::recalcMinMax()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-bool circlePredicate(unsigned x, unsigned y, unsigned radius)
+bool circlePredicate(unsigned x, unsigned y, unsigned radius2)
 {
-	return (x * x + y * y) < radius;
+	return (x * x + y * y) < radius2;
 	//return true;
 
 }
@@ -275,6 +278,7 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 		throw Exception("bad compare func");
 
 	Image newImage(dilationValue * 2 + _width, dilationValue * 2 + _height, clearColor);
+	unsigned dilation2 = dilationValue * dilationValue;
 
 	for (unsigned x = 0; x < _width; x++)
 	{
@@ -285,11 +289,11 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 			{
 				ColorType newColor = ((clearColor == _minColor) ? (color + dilationValue) : (color - dilationValue));
 
-				for (unsigned j = x - dilationValue; j < (x + dilationValue + 1); j++)
+				for (unsigned j = x - dilationValue; j < (x + dilationValue); j++)
 				{
-					for (unsigned k = y - dilationValue; k < (y + dilationValue + 1); k++)
+					for (unsigned k = y - dilationValue; k < (y + dilationValue ); k++)
 					{
-						if (circlePredicate(j - x, k - y, dilationValue) and compare(newColor, newImage.at(j, k)))
+						if (circlePredicate(j - x, k - y, dilation2) and compare(newColor, newImage.at(j, k)))
 							newImage.setPixel(j, k, newColor);
 					}
 				}
@@ -302,11 +306,15 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	_width = newImage._width;
 	_maxColor = newImage._maxColor;
 	_minColor = newImage._minColor;
-	/*
+
+	//recalcMinMax();
 	if (_minColor != 0)
 	{
-		for (unsigned i = 0; i < _width * _height; i++)
+		for (unsigned i = 0; i < (_width * _height); i++)
+		{
 			_data[i] -= _minColor;
+		}
+
 		_minColor -= _minColor;
 		_maxColor -= _minColor;
 	}
@@ -314,90 +322,123 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	recalcMinMax();
 }
 
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Image::triangle(QVector3D a, QVector3D b, QVector3D c, bool (&compare)(ColorType, ColorType), unsigned samples_per_pixel)
+void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(ColorType, ColorType))
 {
-	//QString msg;
-	//QDebug(&msg) << a << b << c << "\n";
-	//qDebug() << a << b << c;
+	// convert to integer vectors with proper rounding
+	vec3i a = vec3i::from(fa);
+	vec3i b = vec3i::from(fb);
+	vec3i c = vec3i::from(fc);
 
     // sort by y
-    if (a.y() > b.y())
+	if (fa.y() > fb.y())
+	{
+		std::swap(fa, fb);
         std::swap(a, b);
-    if (a.y() > c.y())
+	}
+	if (fa.y() > fc.y())
+	{
+		std::swap(fa, fc);
         std::swap(a, c);
-    if (b.y() > c.y())
+	}
+	if (fb.y() > fc.y())
+	{
+		std::swap(fb, fc);
         std::swap(b, c);
+	}
 
-    // computing the edge vectors
-	QVector3D ab = b - a;
-	QVector3D ac = c - a;
-	QVector3D bc = c - b;    
+	// creating the edge vectors
+	vec3i ab = b - a;
+	vec3i ac = c - a;
+	vec3i bc = c - b;
+	QVector3D fab = fb - fa;
+	QVector3D fac = fc - fa;
+	QVector3D fbc = fc - fb;
 
-	float pixelResolution = 1. / (float) samples_per_pixel;
-	if (fabs(ac.y()) < pixelResolution)
+	//if (fabs(ac.y()) < pixelResolution)
+	if (abs(ac.y()) == 0)
         return; // longest edge is too small to make a difference : degenerate triangle, don't draw it
 
-	float t = 0;
+	int t = 0;
 
 	// is AB edge y big enough to draw?
-	if (fabs(ab.y()) >= pixelResolution)
-    {
+	if (abs(ab.y()) > 0)
+	{
         // drawing the spans between AB and AC edges
-		for (double y = a.y(); y < b.y(); y += pixelResolution)
+		for (int y = a.y(); y < b.y(); y++)
         {
-			QVector3D start = a + ab * t / ab.y();
-			QVector3D end   = a + ac * t / ac.y();
+			vec3i start =		a      + ab      * t / ab.y();
+			vec3i end   =		a      + ac      * t / ac.y();
+			double z_start =	fa.z() + fab.z() * t / fab.y();
+			double z_end =		fa.z() + fac.z() * t / fac.y();
 
             if (start.x() > end.x())
+			{
+				std::swap(z_start, z_end);
                 std::swap(start, end);
+			}
 
-			QVector3D span  = end - start;
+			vec3i span  = end - start;
 
-			for (double x = start.x(); x < end.x(); x += pixelResolution)
+			for (int x = start.x(); x < end.x(); x++)
             {
-				double progress =  (x - start.x()) / span.x();
-				double newValue = start.z() + span.z() * progress;
+				double progress =  (double)(x - start.x()) / (double)span.x();
+				//double newValue1 = (double)start.z() + (double)span.z() * progress;
+				double newValue = z_start + (z_end - z_start) * progress;
 
-                if (pixelIsInside(x, y))
+				/*
+				if (fabs (newValue - newValue1) > 2.)
+				{
+					qDebug() <<  "bla!";
+				}
+				// */
+
+				if (pixelIsInside(x, y))
                 {
-                    if (not compare(at(x, y), newValue))
-                        setPixel(x, y, newValue);
+					if (not compare(at(x, y), newValue))
+						setPixel(x, y, newValue);
                 }
             }
-			t += pixelResolution;
+			t++;
         }
     }
 
     // is BC edge too small? then ignore it
-	if (fabs(bc.y()) >= pixelResolution)
+	if (abs(bc.y()) > 0)
     {
-		double d = 0;
+		double d = 0.;
 
 		// drawing the spans between AB and AC edges
-		for (double y = b.y(); y < c.y(); y += pixelResolution)
+		for (double y = b.y(); y < c.y(); y++)
         {
-			QVector3D start = b + bc * d / bc.y();
-			QVector3D end   = a + ac * t / ac.y();
+			vec3i start =		b      + bc * d / bc.y();
+			vec3i end   =		a      + ac * t / ac.y();
+			double z_start =	fa.z() + fbc.z() * d / fbc.y();
+			double z_end =		fa.z() + fac.z() * t / fac.y();
 
             if (start.x() > end.x())
+			{
+				std::swap(z_start, z_end);
                 std::swap(start, end);
+			}
 
-			QVector3D span  = end - start;
+			vec3i span  = end - start;
 
-			for (double x = start.x(); x < end.x(); x += pixelResolution)
+			for (int x = start.x(); x < end.x(); x ++)
             {
-				double progress = (x - start.x()) / span.x();
-				double newValue = start.z() + span.z() * progress;
+				double progress = (double)(x - start.x()) / (double)span.x();
+				//double newValue = (double)start.z() + (double)span.z() * progress;
+				double newValue = z_start + (z_end - z_start) * progress;
 
-                if (pixelIsInside(x, y))
+				if (pixelIsInside(x, y))
                 {
-                    if (not compare(at(x, y), newValue))
-                        setPixel(x, y, newValue);
+					if (not compare(at(x, y), newValue))
+						setPixel(x, y, newValue);
                 }
             }
-			t += pixelResolution;
-			d += pixelResolution;
+			t++;
+			d++;
         }
     }
 }

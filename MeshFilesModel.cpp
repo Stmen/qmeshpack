@@ -2,19 +2,19 @@
 #include "util.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-MeshFilesModel::MeshFilesModel(QObject* parent) :
+NodeModel::NodeModel(QObject* parent) :
 	QAbstractItemModel(parent)
 {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-MeshFilesModel::MeshFilesModel(QVector3D geometry, QObject *parent) :
+NodeModel::NodeModel(QVector3D geometry, QObject *parent) :
 	QAbstractItemModel(parent), _geometry(geometry)
 {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-MeshFilesModel::~MeshFilesModel()
+NodeModel::~NodeModel()
 {
 	/*
 	for (unsigned i = 0; i < _nodes.size(); i++)
@@ -25,14 +25,14 @@ MeshFilesModel::~MeshFilesModel()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-int	MeshFilesModel::columnCount(const QModelIndex& parent) const
+int	NodeModel::columnCount(const QModelIndex& parent) const
 {
 	(void)parent.row(); // supress unused warning
-	return 5; // name, position, geometry, dilation value, samples per pixel
+	return 4; // name, position, geometry, dilation value
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-int MeshFilesModel::rowCount(const QModelIndex& parent)const
+int NodeModel::rowCount(const QModelIndex& parent)const
 {
 	if (not parent.isValid())
 		return _nodes.size();
@@ -41,14 +41,14 @@ int MeshFilesModel::rowCount(const QModelIndex& parent)const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Qt::ItemFlags MeshFilesModel::flags(const QModelIndex &index) const
+Qt::ItemFlags NodeModel::flags(const QModelIndex &index) const
 {
 	(void)index.row(); // supress unused warning
 	return  Qt::ItemIsSelectable | Qt::ItemIsEnabled;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-QVariant MeshFilesModel::headerData(int section, Qt::Orientation orientation, int role) const
+QVariant NodeModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
 	if (role == Qt::DisplayRole)
 	{
@@ -65,8 +65,6 @@ QVariant MeshFilesModel::headerData(int section, Qt::Orientation orientation, in
 					return QString("Geometry");
 				case 3:
 					return QString("Dilation value");
-				case 4:
-					return QString("Samples per pixel");
 			}
 		}
 	}
@@ -74,7 +72,7 @@ QVariant MeshFilesModel::headerData(int section, Qt::Orientation orientation, in
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-QVariant MeshFilesModel::data(const QModelIndex& index, int role) const
+QVariant NodeModel::data(const QModelIndex& index, int role) const
 {
 	if (index.isValid() and index.row() >= 0 and (size_t)index.row() < _nodes.size())
 	{
@@ -93,8 +91,6 @@ QVariant MeshFilesModel::data(const QModelIndex& index, int role) const
 						return toString(node->getMesh()->getGeometry());
 					case 3:
 						return node->getDilationValue();
-					case 4:
-						return node->getSamplesPerPixel();
 				}
 
 			case Qt::UserRole:
@@ -110,7 +106,7 @@ QVariant MeshFilesModel::data(const QModelIndex& index, int role) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-QModelIndex MeshFilesModel::index(int row, int column, const QModelIndex& parent) const
+QModelIndex NodeModel::index(int row, int column, const QModelIndex& parent) const
 {
 	if (not parent.isValid())
 		return createIndex(row, column, 0);
@@ -119,7 +115,7 @@ QModelIndex MeshFilesModel::index(int row, int column, const QModelIndex& parent
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-QModelIndex MeshFilesModel::parent(const QModelIndex &child) const
+QModelIndex NodeModel::parent(const QModelIndex &child) const
 {
 	(void)child.row();
 	return QModelIndex();
@@ -127,7 +123,7 @@ QModelIndex MeshFilesModel::parent(const QModelIndex &child) const
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-bool MeshFilesModel::removeRows(int row, int count, const QModelIndex& parent)
+bool NodeModel::removeRows(int row, int count, const QModelIndex& parent)
 {
 	if ((not parent.isValid()) and row >= 0 and (size_t)row < _nodes.size() and count)
 	{
@@ -141,7 +137,7 @@ bool MeshFilesModel::removeRows(int row, int count, const QModelIndex& parent)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MeshFilesModel::addNode(Node* node)
+void NodeModel::addNode(Node* node)
 {
 	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
 	_nodes.push_back(node);
@@ -149,9 +145,9 @@ void MeshFilesModel::addNode(Node* node)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Node* MeshFilesModel::addMesh(const char* filename, unsigned samples_per_pixel, unsigned dilation)
+Node* NodeModel::addMesh(const char* filename, unsigned dilation)
 {
-	Node* node = new Node(filename, samples_per_pixel, dilation);
+	Node* node = new Node(filename, dilation);
 	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
 	_nodes.push_back(node);
 	endInsertRows();
@@ -159,18 +155,36 @@ Node* MeshFilesModel::addMesh(const char* filename, unsigned samples_per_pixel, 
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MeshFilesModel::setGeometry(QVector3D geometry)
+void NodeModel::setGeometry(QVector3D geometry)
 {
 	_geometry = geometry;
 	emit geometryChanged();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MeshFilesModel::nodeChanged(unsigned i)
+void NodeModel::nodeChanged(unsigned i)
 {
 	if (i < _nodes.size())
 	{
 		QModelIndex idx = createIndex(i, 0);
         emit dataChanged(idx, idx);
 	}
+}
+
+bool lessBBoxSize(Node* n1, Node* n2)
+{
+	QVector3D g1 = n1->getMesh()->getGeometry();
+	QVector3D g2 = n2->getMesh()->getGeometry();
+
+	return (g1.x() * g1.y() * g1.z()) < (g2.x() * g2.y() * g2.z());
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void NodeModel::sortByBBoxSize()
+{
+	beginResetModel();
+	std::sort(_nodes.begin(), _nodes.end(), lessBBoxSize);
+	//emit dataChanged(createIndex(0, 0), createIndex(_nodes.size() - 1, 0););
+	endResetModel();
 }

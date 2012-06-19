@@ -1,15 +1,51 @@
+#include <QStringList>
 #include <fstream>
 #include <algorithm>
 #include <sstream>
+#include <cmath>
+#include <cassert>
+#include <map>
+#include <vector>
+#include "config.h"
 #include "mesh.h"
 #include "Exception.h"
 #include "util.h"
-#include <cmath>
-#include <cassert>
-#include <QStringList>
-#include "config.h"
+#include <QFile>
+#include <QTextStream>
 
 using namespace std;
+
+Mesh::Mesh(std::vector<Mesh*>& meshes, double scaleFactor)
+{
+	size_t numVertices = 0;
+	size_t numTriangleIndices = 0;
+	for (unsigned i = 0; i < meshes.size(); i++)
+	{
+		numVertices += meshes[i]->_triangleIndices.size();
+		numTriangleIndices += meshes[i]->_vertices.size();
+	}
+
+	_triangleIndices.resize(numTriangleIndices);
+	_vertices.resize(numVertices);
+
+	size_t vDest = 0;
+	size_t tDest = 0;
+	for (unsigned i = 0; i < meshes.size(); i++)
+	{
+		size_t sz = meshes[i]->_vertices.size() * sizeof(_vertices[0]);
+		memcpy(&_vertices[vDest], &meshes[i]->_vertices[0], sz);
+		vDest += sz;
+
+		sz = meshes[i]->_triangleIndices.size() * sizeof(_triangleIndices[0]);
+		memcpy(&_triangleIndices[vDest], &meshes[i]->_triangleIndices[0], sz);
+		tDest += sz;
+	}
+
+	if (scaleFactor != 0)
+	{
+
+	}
+}
 
 Mesh::Mesh(const char* off_filename) :
 	_min(INFINITY, INFINITY, INFINITY),
@@ -127,6 +163,29 @@ Mesh::~Mesh()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void Mesh::save(QString filename) const
+{
+	QFile file(filename);
+	if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
+	{
+		throw Exception("%s: Unable to open file: %s", __FUNCTION__, file.errorString().toUtf8().constData());
+		return;
+	}
+
+	QTextStream out(&file);
+	out << "OFF\n";
+	out << _vertices.size() << ' ' << (_triangleIndices.size() / 3) << " 0\n";
+
+	for (unsigned i = 0; i < _vertices.size(); i++)
+		out << _vertices[i].x() << ' ' <<  _vertices[i].y() << ' ' <<  _vertices[i].z() << '\n';
+
+	for (unsigned i = 0; i < _triangleIndices.size(); i += 3)
+		out << "3 " << _triangleIndices[i] << ' ' << _triangleIndices[i + 1] << ' ' <<  _triangleIndices[i + 2] << '\n';
+
+	file.close();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::setVertex(unsigned idx, QVector3D newVertex)
 {
     if (idx >= numVertices())
@@ -200,8 +259,6 @@ void Mesh::recalcMinMax()
 	}
 }
 
-#include <map>
-#include <vector>
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::buildNormals()
 {

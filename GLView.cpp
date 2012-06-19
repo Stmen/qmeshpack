@@ -5,51 +5,39 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 GLView::GLView(QWidget* parent) :
 	QGLWidget(parent),
-	_nodes(&_singleNodeWrapper),
+	_nodes(0),
 	_mouseLast(0, 0),
-	_mouseSensitivity(0.01),
-	_moveSensetivity(10.),
-	_wheelSensitivity(0.6)
+	_rotationSensitivity(0.001),
+	_moveSensetivity(0.4),
+	_wheelSensitivity(0.6),
+	_drawPackBox(false),
+	_single(false)
 {
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
+	_mouseLast = QPoint(0., 0.);
 	_cam.setToIdentity();
-	connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
+	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GLView::GLView(MeshFilesModel* nodes, QWidget* parent) :
+GLView::GLView(const NodeModel* nodes, QWidget* parent) :
 	QGLWidget(parent),	
-	_singleNodeWrapper(nodes->getGeometry()),
 	_nodes(nodes),
 	_mouseLast(0, 0),
-	_mouseSensitivity(0.01),
-	_moveSensetivity(10.),
-	_wheelSensitivity(0.6)
+	_rotationSensitivity(0.001),
+	_moveSensetivity(0.2),
+	_wheelSensitivity(0.6),
+	_drawPackBox(true),
+	_single(false)
 {
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
+	_mouseLast = QPoint(0., 0.);
 	_cam.setToIdentity();
-	_cam.translate(QVector3D(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2.4));
-	connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
+	_cam.translate(QVector3D(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2.4));	
 	connect(nodes, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-GLView::GLView(Node* node, QVector3D geometry, QWidget *parent) :
-	QGLWidget(parent),
-	_singleNodeWrapper(geometry),
-	_nodes(&_singleNodeWrapper),
-	_mouseLast(0, 0),
-	_mouseSensitivity(0.01),
-	_moveSensetivity(0.1)
-{
-	_singleNodeWrapper.addNode(node);
-	setFocusPolicy(Qt::StrongFocus);
-	setAutoBufferSwap(false);
-	_cam.setToIdentity();
-	_cam.translate(QVector3D(geometry.x() / 2, geometry.y() / 2, geometry.z() * 2.4));
-	connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
+	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -58,14 +46,14 @@ GLView::~GLView()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void GLView::setNode(Node* node, QVector3D geometry)
+void GLView::setNode(const Node* node)
 {
-	_singleNodeWrapper.clear();
-	_singleNodeWrapper.setGeometry(geometry);
-	_singleNodeWrapper.addNode(node);
-	_nodes = &_singleNodeWrapper;
+	_drawPackBox = false;
+	_single = true;
+	_node = node;
 	_cam.setToIdentity();
-	_cam.translate(QVector3D(geometry.x() / 2, geometry.y() / 2, geometry.z() * 4));
+	QVector3D geom = node->getMesh()->getGeometry();
+	_cam.translate(QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 3));
 	updateGL();
 }
 
@@ -93,9 +81,10 @@ void GLView::initializeGL()
 
 	// Create light components
 	GLfloat ambientLight[] = { 0.2f, 0.2f, 0.2f, 1.0f };
-	GLfloat diffuseLight[] = { 0.8, 0.8, 0.8, 1.f };
+	GLfloat diffuseLight[] = { 0.9, 0.9, 0.9, 1.f };
 	GLfloat specularLight[] = { 0.5f, 0.5f, 0.5f, 1.0f };	
 	_lightPos = QVector4D(0., 0., _nodes->getGeometry().z(), 1);
+
 	// Assign created components to GL_LIGHT0
 	glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
@@ -132,38 +121,51 @@ void GLView::paintGL()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadMatrixd(_cam.inverted().constData());
 
-#ifdef USE_LIGHTING
-    glEnable(GL_LIGHTING);
-	glLightfv(GL_LIGHT0, GL_POSITION, (float*)&_lightPos);    
+#ifdef USE_LIGHTING    
+	glEnable(GL_LIGHTING);
+	float ligtPos[4] = { (float)_cam.column(3).x(), (float)_cam.column(3).y(), (float)_cam.column(3).z(), 1 };
+	glLightfv(GL_LIGHT0, GL_POSITION, ligtPos);
 #endif
 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
 
-	QVector3D min(INFINITY, INFINITY, INFINITY), max(-INFINITY, -INFINITY, -INFINITY);
 	glColor3f(1., 0., 0.);
-
-	for (unsigned i = 0; i < _nodes->numNodes(); i++)
+	if (_single)
 	{
-		Node* node = _nodes->getNode(i);
-		QVector3D nodePos = node->getPos();
-
-		glPushMatrix();
-		min = vecmin(min, nodePos + node->getMesh()->getMin());
-		max = vecmax(max, nodePos + node->getMesh()->getMax());
-
+		QVector3D nodePos = _node->getPos();
 		glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
+		_node->getMesh()->draw(false);
+	}
+	else
+	{
+		QVector3D min(INFINITY, INFINITY, INFINITY), max(-INFINITY, -INFINITY, -INFINITY);
+		for (unsigned i = 0; i < _nodes->numNodes(); i++)
+		{
+			Node* node = _nodes->getNode(i);
+			QVector3D nodePos = node->getPos();
 
-		_nodes->getNode(i)->getMesh()->draw(false);
-		glPopMatrix();
+			glPushMatrix();
+			min = vecmin(min, nodePos + node->getMesh()->getMin());
+			max = vecmax(max, nodePos + node->getMesh()->getMax());
+
+			glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
+
+			_nodes->getNode(i)->getMesh()->draw(false);
+			glPopMatrix();
+		}
+
+		if (_drawPackBox)
+		{
+			glColor3f(1., 1., 0.);
+			glEnableClientState(GL_VERTEX_ARRAY);
+			drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes->getGeometry());
+			glDisableClientState(GL_VERTEX_ARRAY);
+		}
 	}
 
 #ifdef USE_LIGHTING
     glDisable(GL_LIGHTING);
 #endif
-	glColor3f(1., 1., 0.);
-	glEnableClientState(GL_VERTEX_ARRAY);
-	drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes->getGeometry());
-	glDisableClientState(GL_VERTEX_ARRAY);
 
 	//*/
 
@@ -180,26 +182,29 @@ void GLView::paintGL()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::mousePressEvent(QMouseEvent* event)
 {
-	//qDebug() << "pressed " << event->button();
-	if(event->button() & Qt::LeftButton)
-	{		
-		_mouseLast = event->pos();
-	}
+	_mouseLast = event->pos();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::mouseMoveEvent(QMouseEvent *event)
 {
+	QPoint delta = event->pos() - _mouseLast;
+	_mouseLast = event->pos();
+	QMatrix4x4 mat;
+	mat.setToIdentity();
+
 	if(event->buttons() & Qt::LeftButton)
 	{
-		QPoint diff = event->pos() - _mouseLast;
-		//qDebug() << "mouseMove " << diff;
-		QMatrix4x4 mat;
-		mat.setToIdentity();				
-		mat.translate(_nodes->getGeometry() / 2.);
-		mat.rotate(diff.x(), _cam.column(1).toVector3D());
-		mat.rotate(diff.y(), _cam.column(0).toVector3D());
-		mat.translate(_nodes->getGeometry() / -2.);
+		QVector3D geometry = (_single) ?  _node->getMesh()->getGeometry() : _nodes->getGeometry();
+
+		mat.translate(geometry / 2.);
+
+		if (delta.x())
+			mat.rotate(delta.x(), _cam.column(1).toVector3D());
+		if (delta.y())
+			mat.rotate(delta.y(), _cam.column(0).toVector3D());
+
+		mat.translate(geometry / -2.);
 
 		//_cam.translate(_nodes->getGeometry() / -2.);
 		_cam = mat * _cam; // camera centered on (0. 0. 0.)
@@ -207,9 +212,18 @@ void GLView::mouseMoveEvent(QMouseEvent *event)
 
 		//_cam.rotate(diff.x(), 0., 1., 0.);
 		//_cam.rotate(diff.y(), 1., 0., 0.);
-		_mouseLast = event->pos();
-		updateGL();
 	}
+	else if (event->buttons() & Qt::RightButton)
+	{
+		if (delta.y() != 0)
+			mat.translate(_cam.column(1).toVector3D() * _moveSensetivity * -delta.y());
+		if (delta.x() != 0)
+			mat.translate(_cam.column(0).toVector3D() * _moveSensetivity * delta.x());
+		_cam = mat * _cam;
+
+	}
+
+	updateGL();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -218,32 +232,32 @@ void GLView::keyPressEvent(QKeyEvent* event)
 	switch(event->key())
 	{	
 		case Qt::Key_W:
-			_cam.translate(_cam.column(1).toVector3D() * _moveSensetivity);
+			_cam.translate(_cam.row(1).toVector3D() * _moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_S:
-			_cam.translate(_cam.column(1).toVector3D() * -_moveSensetivity);
+			_cam.translate(_cam.row(1).toVector3D() * -_moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_A:
-			_cam.translate(_cam.column(0).toVector3D() * -_moveSensetivity);
+			_cam.translate(_cam.row(0).toVector3D() * -_moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_D:
-			_cam.translate(_cam.column(0).toVector3D() * _moveSensetivity);
+			_cam.translate(_cam.row(0).toVector3D() * _moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_Space:			
-			_cam.translate(_cam.column(2).toVector3D() * -_moveSensetivity);
+			_cam.translate(_cam.row(2).toVector3D() * -_moveSensetivity);
 			updateGL();
 			break;
 
 		case Qt::Key_Shift:
-			_cam.translate(_cam.column(2).toVector3D() * -_moveSensetivity);
+			_cam.translate(_cam.row(2).toVector3D() * -_moveSensetivity);
 			updateGL();
 			break;
 

@@ -8,11 +8,12 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QImage>
-#include <cstdlib>
-#include <iostream>
-#include <omp.h>
 #include <QtConcurrentRun>
 #include <QtConcurrentMap>
+#include <QtConcurrentMap>
+#include <functional>
+#include <cstdlib>
+#include <iostream>
 #include "image.h"
 #include "mesh.h"
 #include "GLView.h"
@@ -25,6 +26,7 @@ using namespace std;
 #define VIEW_MODEL 2
 #define VIEW_PROGRESS 3
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
 void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
 {
 	for (double i = from; i < from + M_PI * 2; i += 0.8)
@@ -44,77 +46,13 @@ void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
 	}
 }
 
-
-/*
- *      C
- *
- *
- *   B
- *
- *          A
- */
-void testTriangle1(Image* img)
-{
-	QVector3D a = QVector3D(500., 100., 10);
-	QVector3D b = QVector3D(100., 300., 100.);
-	QVector3D c = QVector3D(800., 600., 250.);
-    img->triangle(a, b, c, Image::maxValue);
-
-
-
-}
-
-void testTriangle2(Image* img)
-{
-	QVector3D a = QVector3D(100., 100., 10);
-	QVector3D b = QVector3D(500., 100., 100.);
-	QVector3D c = QVector3D(800., 600., 250.);
-    img->triangle(a, b, c, Image::maxValue);
-}
-
-void testTriangle3(Image* img)
-{
-	QVector3D a = QVector3D(100., 100., 10);
-	QVector3D b = QVector3D(300., 300., 100.);
-	QVector3D c = QVector3D(200., 600., 250.);
-    img->triangle(a, b, c, Image::maxValue);
-}
-
-void testTriangle4(Image* img)
-{
-	QVector3D a = QVector3D(100., 100., 10);
-	QVector3D b = QVector3D(100., 300., 100.);
-	QVector3D c = QVector3D(200., 100., 250.);
-    img->triangle(a, b, c, Image::maxValue);
-}
-
-void testTriangle5(Image* img)
-{
-	QVector3D a = QVector3D(100., 100., 10);
-	QVector3D b = QVector3D(300., 100., 100.);
-	QVector3D c = QVector3D(300., 200., 250.);
-    img->triangle(a, b, c, Image::maxValue);
-}
-
-
-Image* test1()
-{
-    Image* img = new Image(1000, 1000);
-    img->clear(0);
-    //img->clear(0);
-    //testTriangle1(img);
-    //testTriangle2(img);
-    testTriangle5(img);
-    return img;
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 MainWindow::MainWindow() : QMainWindow()
 {
 	QSettings settings("Konstantin", APP_NAME);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
-	_defaultSamplesPerPixel = qvariant_cast<unsigned>(settings.value("samples_per_pixel", 10));
+	_conversionFactor = qvariant_cast<unsigned>(settings.value("conversionFactor", 0));
 	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));
 
 	_stack = new QStackedWidget(this);
@@ -174,7 +112,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	settings.setValue("geometry", saveGeometry());
 	settings.setValue("windowState", saveState());
 	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
-	settings.setValue("samples_per_pixel", _defaultSamplesPerPixel);
+	settings.setValue("conversionFactor", _conversionFactor);
 	settings.setValue("dilation", _defaultDilationValue);
 	QMainWindow::closeEvent(event);
 }
@@ -185,9 +123,10 @@ void MainWindow::createMeshList()
 	QSettings settings("Konstantin", APP_NAME);
 	QVector3D boxGeometry = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
 	// create mesh list
-	_modelMeshFiles = new MeshFilesModel(boxGeometry, this);
+	_modelMeshFiles = new NodeModel(boxGeometry, this);
 	_viewMeshFiles = new QTreeView(this);
 	_viewMeshFiles->setModel(_modelMeshFiles);
+	_viewMeshFiles->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 	//_viewMeshFiles->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
 	_viewMeshFiles->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(menuContextNode(const QPoint &)));
@@ -204,6 +143,9 @@ void MainWindow::createMeshList()
 void MainWindow::createActions()
 {
 	QStyle* style = QApplication::style();
+
+	_actStop = new QAction(QIcon(":/trolltech/styles/commonstyle/images/stop-32.png"), tr("&Stop"), this);
+	connect(_actStop, SIGNAL(triggered()), _threadPacker, SLOT(shouldStop()));
 
 	_actExit = new QAction(QIcon(), tr("&Exit"), this);
 	_actExit->setShortcuts(QKeySequence::Close);
@@ -224,9 +166,9 @@ void MainWindow::createActions()
 	_actSetBoxGeometry->setStatusTip(tr("Sets the bounding box geometry for the target space."));
 	connect(_actSetBoxGeometry, SIGNAL(triggered()), this, SLOT(dialogSetBoxGeometry()));
 
-	_actSetDefaultSamplesPerPixel = new QAction(QIcon(), tr("Set default &samples per pixel"), this);
-	_actSetDefaultSamplesPerPixel->setStatusTip(tr("Sets the pixel rendering resolution."));
-	connect(_actSetDefaultSamplesPerPixel, SIGNAL(triggered()), this, SLOT(dialogSetDefaultSamplesPerPixel()));
+	_actSetConversionFactor = new QAction(QIcon(), tr("Set default &conversion factor"), this);
+	_actSetConversionFactor->setStatusTip(tr("Sets the default conversion factor"));
+	connect(_actSetConversionFactor, SIGNAL(triggered()), this, SLOT(dialogSetConversionFactor()));
 
 	_actSetDefaultDilationValue = new QAction(QIcon(), tr("Set default &dilation value"), this);
 	_actSetDefaultDilationValue->setStatusTip(tr("Sets the default dilation value."));
@@ -243,7 +185,6 @@ void MainWindow::createActions()
 	_actSaveResults = new QAction(style->standardIcon(QStyle::SP_DialogSaveButton), tr("Save &results"), this);
 	_actSaveResults->setStatusTip(tr("Saves a result positions"));
 	connect(_actSaveResults, SIGNAL(triggered()), this, SLOT(dialogSaveResults()));
-
 
 	// creating Mesh specific actions
 	_actMeshRemove = new QAction(style->standardIcon(QStyle::SP_DialogCloseButton), tr("&Remove current mesh"), this);
@@ -277,7 +218,7 @@ void MainWindow::createMenus()
 
 	menu = new QMenu(tr("&Settings"));
 	menu->insertAction(0, _actSetBoxGeometry);
-	menu->insertAction(0, _actSetDefaultSamplesPerPixel);
+	menu->insertAction(0, _actSetConversionFactor);
 	menu->insertAction(0, _actSetDefaultDilationValue);
 	menuBar()->addMenu(menu);
 
@@ -291,6 +232,7 @@ void MainWindow::createMenus()
 	_toolMain->insertAction(0, _actProcess);
 	//_toolMain->insertAction(0, _actSaveScreenshot);
 	_toolMain->insertAction(0, _actSaveResults);
+	_toolMain->insertAction(0, _actStop);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -306,7 +248,7 @@ void MainWindow::createStack()
 	label->setBackgroundRole(QPalette::Base);
 	//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
 	//imageLabel->setScaledContents(false);
-	label->setScaledContents(false);
+	label->setScaledContents(true);
 	Image img(700, 700);
 	//testTriangle1(&img);
 	//img.dilate(10, Image::maxValue);
@@ -339,7 +281,7 @@ void MainWindow::createStack()
 void MainWindow::mainNodeSelected(const QModelIndex & index)
 {
 	Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
-	_viewModel->setNode(node, _modelMeshFiles->getGeometry());
+	_viewModel->setNode(node);
 	_stack->setCurrentIndex(VIEW_MODEL);
 }
 
@@ -424,7 +366,6 @@ void MainWindow::dialogSetBoxGeometry()
 			QDebug(&msg) << dialog.getResult();
 			consolePrint(msg);
 			_modelMeshFiles->setGeometry(dialog.getResult());
-			_viewModel->getGLView()->getCurrentModel()->setGeometry(dialog.getResult());
 		}
 		else
 			consolePrint(tr("Bad input"), 2);
@@ -432,18 +373,17 @@ void MainWindow::dialogSetBoxGeometry()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::dialogSetDefaultSamplesPerPixel()
+void MainWindow::dialogSetConversionFactor()
 {
-	QString msg = tr("Setting default samples per pixel to ");
 	bool ok;
-	double resolution = QInputDialog::getInteger(this, msg,
-												 tr("new resolution in real pixels"),
-												 _defaultSamplesPerPixel,
-												 0, 1000, 1, &ok);
-	if (ok)
+	double f = QInputDialog::getDouble(this, tr("Set new conversion value"),
+												 tr("new conversion value"),
+												 _conversionFactor,
+												 -1000000, 1000000, 4, &ok);
+	if (ok and f != _conversionFactor)
 	{
-		_defaultSamplesPerPixel = resolution;
-		consolePrint(msg + QString::number(resolution));
+		_conversionFactor = f;
+		consolePrint(tr("Setting new conversion factor to ") + QString::number(f));
 	}
 }
 
@@ -465,133 +405,138 @@ struct NodeInfo
 {
     QString filename;
     QVector3D position;
-    unsigned spp, dilation;
+	unsigned dilation;
 };
-#define EXT_DOTTED "."RESULTS_APPEND_EXTENSION
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
+void MainWindow::loadList(QString filename)
+{
+	QFile file(filename);
+	if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
+		throw Exception("Unable to open file %s: %s", filename.toUtf8().constData(), file.errorString().toUtf8().constData());
+
+	std::vector<NodeInfo> nodeInfos;
+
+	while (not file.atEnd() and file.isReadable())
+	{
+		QList<QByteArray> list = file.readLine().split(';');
+		if (list.empty()) // ignore unparsable
+			continue;
+
+		QString  off_filename = list.at(0).trimmed();
+		if (off_filename.isEmpty())
+			continue;
+
+		double x = list.at(1).toDouble(), y = list.at(2).toDouble(), z = list.at(3).toDouble();
+		NodeInfo n = {off_filename, QVector3D(x, y, z), _defaultDilationValue };
+		nodeInfos.push_back(n);
+	}
+
+	unsigned sz = nodeInfos.size();
+	Node* nodes[sz];
+
+	//#pragma omp parallel for
+	for (unsigned i = 0; i < sz; i++)
+	{
+		NodeInfo info = nodeInfos[i];
+		nodes[i] = new Node(info.filename, info.dilation);
+		nodes[i]->setPos(info.position);
+	}
+
+	for (unsigned i = 0; i < sz; i++)
+	{
+		QVector3D pos = nodes[i]->getPos();
+		consolePrint(QString("opened \"%1\" at (%2 %3 %4)").arg(nodes[i]->getMesh()->getName())
+					 .arg(pos.x()).arg(pos.y()).arg(pos.z()));
+		_modelMeshFiles->addNode(nodes[i]);
+	}
+}
+*/
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogAddMesh()
 {
-    QString filename = QFileDialog::getOpenFileName(this,
-		tr("Open Mesh File"), "", tr(
-#ifdef RESULTS_APPEND_EXTENSION
-        "All supported files (*.off *.OFF *" EXT_DOTTED ");; "
-        "Mesh file list (*" EXT_DOTTED ");; "
-#endif
-		"OFF files (*.off *.OFF);; "
-		"All Files (*.*)"));
+	QFileDialog dialog(this);
+	//dialog.setDirectory(QDir::homePath());
+	dialog.setFileMode(QFileDialog::ExistingFiles);
+	dialog.setNameFilter(tr("OFF meshes (*.off *.OFF);; "
+							// "All files (*.*)"
+							));
+	if (not dialog.exec())
+		return;
 
-    if (not filename.isEmpty())
-    {
-		QString msg = QString(tr("Failed to open file \"")) + filename + QString("\" ");
-        try
-        {
-			consolePrint(QString("opening \"%1\"").arg(filename));
-			QStringList l = filename.split(".");
-			QString ext = l.at(l.size() - 1).toLower();
-			if (ext == "off")
-			{
-				_modelMeshFiles->addMesh(filename.toUtf8().constData(), _defaultSamplesPerPixel, _defaultDilationValue);
-			}
-#ifdef RESULTS_APPEND_EXTENSION
-			else if (ext == RESULTS_APPEND_EXTENSION)
-			{
-				QFile file(filename);
-				if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
-					throw Exception("Unable to open file %s: %s", filename.toUtf8().constData(), file.errorString().toUtf8().constData());
+	QStringList filenames = dialog.selectedFiles();
+	if (filenames.isEmpty())
+		return;
 
-                std::vector<NodeInfo> nodeInfos;
+	try
+	{
+		std::function<Node* (const QString& str)> createNode =
+				[this](const QString& str) { return new Node(str.toUtf8().constData(), _defaultDilationValue); };
+		std::function<void (int, Node*)> add = [this](int a, Node* node) { (void)a; _modelMeshFiles->addNode(node); };
 
-				while (not file.atEnd() and file.isReadable())
-				{
-					QList<QByteArray> list = file.readLine().split(';');
-                    if (list.empty()) // ignore unparsable
-						continue;
-
-					QString  off_filename = list.at(0).trimmed();
-                    if (off_filename.isEmpty())
-                        continue;
-
-					double x = list.at(1).toDouble(), y = list.at(2).toDouble(), z = list.at(3).toDouble();
-                    NodeInfo n = {off_filename, QVector3D(x, y, z), _defaultSamplesPerPixel, _defaultDilationValue };
-                    nodeInfos.push_back(n);
-                }
-
-                unsigned sz = nodeInfos.size();
-                Node* nodes[sz];
-
-                //#pragma omp parallel for
-                for (unsigned i = 0; i < sz; i++)
-                {
-                    NodeInfo info = nodeInfos[i];
-                    nodes[i] = new Node(info.filename, info.spp, info.dilation);
-                    nodes[i]->setPos(info.position);
-                }
-
-                for (unsigned i = 0; i < sz; i++)
-                {
-                    QVector3D pos = nodes[i]->getPos();
-                    consolePrint(QString("opened \"%1\" at (%2 %3 %4)").arg(nodes[i]->getMesh()->getName())
-                                 .arg(pos.x()).arg(pos.y()).arg(pos.z()));
-                    _modelMeshFiles->addNode(nodes[i]);
-                }
-			}
-#endif
-			else
-				throw Exception("Unknown file extension.");
-        }
-		catch (const std::exception& ex)
-        {
-            msg += QString(ex.what());
-			consolePrint(msg, 2);
-			QMessageBox::critical(this, tr("Open failed"), msg);
-        }
-        catch (...)
-        {
-			consolePrint(msg, 2);
-			QMessageBox::critical(this, tr("Open failed"), msg);
-        }
-    }
-
+		QtConcurrent::blockingMappedReduced<int>(filenames, createNode, add, QtConcurrent::UnorderedReduce);
+	}
+	catch (const std::exception& ex)
+	{
+		QString msg  = QString("failed to open files: ") + QString(ex.what());
+		consolePrint(msg, 2);
+		QMessageBox::critical(this, tr("Open failed"), msg);
+	}
+	catch (...)
+	{
+		QString msg  = QString("failed to open files");
+		consolePrint(QString(msg), 2);
+		QMessageBox::critical(this, tr("Open failed"), msg);
+	}
 }
 
+#define EXT_DOTTED "." RESULTS_APPEND_EXTENSION
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogSaveResults()
 {
-	QString filename = QFileDialog::getSaveFileName(this,
-		tr("Save main window screenshot"), "", tr(
-#ifdef RESULTS_APPEND_EXTENSION
-		"Mesh file list (*"EXT_DOTTED");; "
-#endif
-		"All Files (*.*)"));
+	static QString suffix;
+	QString filename = QFileDialog::getSaveFileName(this, tr("Choose a file to save to"), "",
+			"Text files (*.txt *.TXT);; OFF Files(*.off *.OFF)",
+			&suffix);
 
-	if (not filename.isEmpty())
+	suffix = suffix.toLower();
+	if (filename.isEmpty())
+		return;
+
+
+	// what if the users did not specify a suffix...?
+	QFileInfo fileInfo(filename);
+	if (fileInfo.suffix().isEmpty())
+		filename += suffix;
+
+	qDebug() << "suffix was " << suffix;
+	if (suffix == "off")
 	{
+		consolePrint(QString("saving results to an OFF mesh \"%1\"").arg(filename));
+		_modelMeshFiles->getNode(0)->getMesh()->save("test.off");
+	}
+	else if (suffix == "txt")
+	{
+		QFile file(filename);
+		if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
+		{
+			QMessageBox::information(this, tr("Unable to open file"), file.errorString());
+			return;
+		}
 
-#ifdef RESULTS_APPEND_EXTENSION
-		QStringList l = filename.split(".");
-		QString ext = l.at(l.size() - 1).toLower();
+		consolePrint(QString("saving results to a list \"%1\"").arg(filename));
+		QTextStream out(&file);
 
-		if (ext != RESULTS_APPEND_EXTENSION )
-			filename += EXT_DOTTED;
-#endif
-
-	   QFile file(filename);
-	   if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
-	   {
-		   QMessageBox::information(this, tr("Unable to open file"), file.errorString());
-		   return;
-	   }
-
-	   consolePrint(QString("saving results to \"%1\"").arg(filename));
-	   QTextStream out(&file);
-
-	   for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
-	   {
-		   Node* node = _modelMeshFiles->getNode(i);
-		   out << node->getMesh()->getFilename() << ';'
-			   << node->getPos().x() << ';' << node->getPos().y() << ';' << node->getPos().z() << '\n';
-	   }
-	   file.close();
+		for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
+		{
+			Node* node = _modelMeshFiles->getNode(i);
+			out << node->getMesh()->getFilename() << ';'
+				<< node->getPos().x() << ';' << node->getPos().y() << ';' << node->getPos().z() << '\n';
+		}
+		file.close();
 	}
 }
 
@@ -600,7 +545,7 @@ void MainWindow::processNodes()
 {
 	if (_threadPacker->isRunning())
 	{
-		consolePrint(tr("processing thread is still running, aborting"));
+		consolePrint(tr("processing thread is still running..."));
 		return;
 	}
 
@@ -627,6 +572,7 @@ void MainWindow::processNodes()
 			}
 		}
 
+		_modelMeshFiles->sortByBBoxSize();
         consolePrint(tr("starting processing thread"));
         _stack->setCurrentIndex(VIEW_PROGRESS);
 		_progressWidget->setRange(0, _threadPacker->maxProgress());		
@@ -666,7 +612,9 @@ void MainWindow::consolePrint(QString str, unsigned level)
 
 	QString text = QDateTime::currentDateTime().toString("%1[hh:mm:ss] %2%3").arg(prefix).arg(str).arg(endHtml);
 	QTextCursor cursor = _console->textCursor();
-	cursor.movePosition(QTextCursor::End);
+	//cursor.setPosition();
+	cursor.movePosition(QTextCursor::Start);
+
 	_console->insertHtml(text);
 }
 

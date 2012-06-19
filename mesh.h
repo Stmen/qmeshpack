@@ -16,6 +16,8 @@ class Mesh
 {    
 public:
 
+
+	Mesh(std::vector<Mesh*>& meshes, double scaleFactor);
     Mesh(const char* off_filename);
     ~Mesh();
 	QVector3D	getMax() const { return _max; }
@@ -33,6 +35,7 @@ public:
 	void		recalcMinMax();
 	void		draw(bool drawAABB = true) const;
 	void		buildNormals();
+	void		save(QString filename) const;
 
     /// this class is used to iterate over the Triangles of a Mesh.
     class Iterator : public ::Iterator<Triangle>

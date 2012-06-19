@@ -36,7 +36,7 @@
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
-	MeshFilesModel* _modelMeshFiles;
+	NodeModel* _modelMeshFiles;
 	QTreeView*      _viewMeshFiles;
 	ModelView*		_viewModel;
 	QProgressBar*	_progressWidget;
@@ -47,6 +47,7 @@ class MainWindow : public QMainWindow
 	QStackedWidget*	_stack;
 
 	// actions
+	QAction*			_actStop;
     QAction*			_actExit;
     QAction*			_actAddFile;
     QAction*            _actProcess;
@@ -62,10 +63,10 @@ class MainWindow : public QMainWindow
 	QAction*            _actMeshTranslate;
 
 	//
-	unsigned			_defaultSamplesPerPixel;
+	float				_conversionFactor;
 	unsigned			_defaultDilationValue;
 
-	QAction*			_actSetDefaultSamplesPerPixel;
+	QAction*			_actSetConversionFactor;
 	QAction*			_actSetDefaultDilationValue;
 
 	void createMeshList();
@@ -78,9 +79,9 @@ public slots:
 
 	void dialogSetBoxGeometry();
 	void dialogAddMesh();
-	void dialogSetDefaultSamplesPerPixel();
+	void dialogSetConversionFactor();
 	void dialogSetDefaultDilation();
-	void addMeshByName(const char* name) { _modelMeshFiles->addMesh(name); }
+	void addMeshByName(const char* name) { _modelMeshFiles->addMesh(name, _defaultDilationValue); }
     void processNodes();
     void aboutThisApp();
 	void mainNodeSelected(const QModelIndex& index);
@@ -91,7 +92,6 @@ public slots:
 	void consolePrint(QString str, unsigned level = 0);	
 	void saveScreenshot();
 	void dialogSaveResults();
-
 private:
 
 private slots:

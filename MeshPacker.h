@@ -9,8 +9,8 @@ class MeshPacker : public QThread
 	Q_OBJECT
 
 public:
-	explicit MeshPacker(MeshFilesModel& nodes, QObject *parent = 0);
-	void		setNodeList(MeshFilesModel& nodes);
+	explicit MeshPacker(NodeModel& nodes, QObject *parent = 0);
+	void		setNodeList(NodeModel& nodes);
 	size_t		maxProgress() const;
 
 protected:
@@ -20,13 +20,19 @@ signals:
 
 	void reportProgress(int progress);
 	void processingDone();
-	void report(QString what);
+	void report(QString what, unsigned level);
 
 public slots:
+	void shouldStop()
+	{
+		_shouldStop = true;
+		#pragma omp flush (_shouldStop)
+	}
 
 private:
 
-	MeshFilesModel&			_nodes;
+	NodeModel&			_nodes;
+	bool				_shouldStop;
 };
 
 #endif // MESHPACKER_H

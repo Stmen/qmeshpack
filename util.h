@@ -3,6 +3,48 @@
 #include <QVector3D>
 #include <cmath>
 
+union vec3i
+{
+	typedef int v4si __attribute__ ((vector_size (16)));
+
+	v4si data;
+	int	 elem[4];
+
+	inline int x() const { return elem[0]; }
+	inline int y() const { return elem[1]; }
+	inline int z() const { return elem[2]; }
+
+	inline vec3i operator+(const vec3i other) { return { data + other.data }; }
+	inline vec3i operator-(const vec3i other) { return { data - other.data }; }
+	inline vec3i operator*(const vec3i other) { return { data * other.data }; }
+	inline vec3i operator/(const vec3i other) { return { data / other.data }; }
+	inline vec3i operator*(const int i)
+	{
+		v4si v =  {i, i, i, 0};
+		return { data * v };
+	}
+
+	inline vec3i operator/(const int i)
+	{
+		v4si v =  {i, i, i, 1};
+		return { data / v };
+	}
+
+	static vec3i from(int x, int y, int z)
+	{
+		v4si result = {x, y, z, 0};
+		return { result };
+	}
+
+	static vec3i from(QVector3D v)
+	{
+		v += QVector3D(0.5, 0.5, 0.5); // rounding
+		v4si result = {(int)v.x(), (int)v.y(), (int)v.z(), 0};
+		return { result };
+	}
+
+};
+
 template<class T>
 inline T lerp(T a, T b, float percent)
 {

@@ -4,21 +4,16 @@
 #include "Node.h"
 #include <vector>
 
-class MeshFilesModel : public QAbstractItemModel
+class NodeModel : public QAbstractItemModel
 {
 	Q_OBJECT
 
 public:
 
-	Node*		getNode(unsigned i) const { return _nodes[i]; }
-	void		setGeometry(QVector3D geometry);
-	QVector3D	getGeometry() const { return _geometry; }
-	size_t		numNodes() const { return _nodes.size(); }
-	void		clear() { _nodes.clear(); }
+	explicit NodeModel(QObject *parent = 0);
+	explicit NodeModel(QVector3D geometry, QObject *parent = 0);
+	virtual ~NodeModel();
 
-	explicit MeshFilesModel(QObject *parent = 0);
-	explicit MeshFilesModel(QVector3D geometry, QObject *parent = 0);
-	virtual ~MeshFilesModel();
 	Qt::ItemFlags flags(const QModelIndex & index) const;
 	int	columnCount( const QModelIndex & parent = QModelIndex()) const;
 	int rowCount(const QModelIndex & parent = QModelIndex()) const;
@@ -29,13 +24,20 @@ public:
 	bool removeRows(int row, int count, const QModelIndex & parent = QModelIndex());
 	//const NodeList&	getNodeList() const { return _nodes; }
 
+	Node*		getNode(unsigned i) const { return _nodes[i]; }
+	void		setGeometry(QVector3D geometry);
+	QVector3D	getGeometry() const { return _geometry; }
+	size_t		numNodes() const { return _nodes.size(); }
+	void		clear() { _nodes.clear(); }
+	void		sortByBBoxSize();
+
 signals:
 	void		geometryChanged();
 	//void		nodeAdded();
 	//void		nodeRemoved(unsigned idx);
 public slots:
 
-	Node* addMesh(const char *filename, unsigned samples_per_pixel = 10, unsigned dilation = 0);
+	Node* addMesh(const char *filename, unsigned dilation);
 	void addNode(Node* node);
 	void nodeChanged(unsigned i);
 

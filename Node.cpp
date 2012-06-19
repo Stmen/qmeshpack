@@ -3,16 +3,15 @@
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Node::Node(QString filename, unsigned spp, unsigned dilation)
-	: _samplesPerPixel(spp), _dilation(dilation)
+Node::Node(QString filename, unsigned dilation)	: _dilation(dilation)
 {
     _mesh = new Mesh(filename.toUtf8().constData());
 	auto_ptr<Mesh> mesh_guard(_mesh);
 
 	#pragma omp parallel
 	{
-		_top = new Image(*_mesh, Image::Top, _samplesPerPixel, dilation);
-		_bottom = new Image(*_mesh, Image::Bottom, _samplesPerPixel, dilation);
+		_top = new Image(*_mesh, Image::Top, dilation);
+		_bottom = new Image(*_mesh, Image::Bottom, dilation);
 	}
 
 	mesh_guard.release();
@@ -24,17 +23,6 @@ Node::~Node()
 	delete _bottom;
 	delete _top;
 	delete _mesh;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void Node::setSamplesPerPixel(unsigned spp)
-{
-	if (spp != _samplesPerPixel)
-	{
-		_samplesPerPixel = spp;
-		rebuildTop();
-		rebuildBottom();
-	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

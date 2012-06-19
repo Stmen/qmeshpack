@@ -1,8 +1,9 @@
 TEMPLATE = app
 QT += opengl
 CONFIG += thread qt exceptions
-QMAKE_CXXFLAGS += -march=core2 -fopenmp
+QMAKE_CXXFLAGS += -std=c++11 -march=core2 -fopenmp
 QMAKE_LFLAGS += -fopenmp
+MAKEFLAGS = -j5
 SOURCES += main.cpp \
     mainwindow.cpp \
     mesh.cpp \
