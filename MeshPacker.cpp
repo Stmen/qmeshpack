@@ -62,7 +62,7 @@ void MeshPacker::run()
 						#pragma omp flush (abort)
 					}
 
-					Image::ColorType z = base.computeMinZ(x, y, *(node->getBottom()));
+					Image::ColorType z = base.computeMinZDistance(x, y, *(node->getBottom()));
                     emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
 
 					#pragma omp critical

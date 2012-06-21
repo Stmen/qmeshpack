@@ -231,28 +231,32 @@ void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-float Image::computeMinZ(unsigned x, unsigned y, const Image &other) const
+float Image::computeMinZDistance(unsigned x, unsigned y, const Image &other) const
 {
 	if ((x + other.getWidth() > _width) or (y + other.getHeight() > _height))
 		throw Exception("%s: images overlap", __FUNCTION__);
 
 	assert(other.minColor() > -1. and other.minColor() < 1.);
 
-	for (unsigned z = maxColor(x, y, other.getWidth(), other.getHeight()); z > 0; z--)
+	Image::ColorType minDist = other.at(0, 0);
+	unsigned min_x = 0;
+	unsigned min_y = 0;
+
+	// TODO : use SSE
+	for (unsigned xx = 0; xx < other.getWidth(); xx++)
 	{
-		for (unsigned j = 0; j < other.getHeight(); j++)
+		for (unsigned yy = 0; yy < other.getHeight(); yy++)
 		{
-			for (unsigned i = 0; i < other.getWidth(); i++)
+			Image::ColorType dist = other.at(xx, yy) - at(x + xx, y + yy);
+			if (dist < minDist)
 			{
-				ColorType otherColor = other.at(i, j) + z - 1;
-				ColorType color = at(x + i, y + j);
-				if (otherColor < color)
-					return z;
+				minDist = dist;
+				min_x = xx;
+				min_y = yy;
 			}
 		}
 	}
-
-	return 0;
+	return other.at(min_x, min_y) - minDist;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

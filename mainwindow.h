@@ -53,9 +53,9 @@ class MainWindow : public QMainWindow
     QAction*            _actProcess;
 	QAction*			_actSetBoxGeometry;	
 	QAction*			_actShowResults;
-	QAction*			_actShowProgress;
 	QAction*			_actSaveScreenshot;
 	QAction*			_actSaveResults;
+	QAction*			_actDoScaleImages;
 
 	// specific actions that work on the current _currMeshIndex
 	QModelIndex         _currMeshIndex;

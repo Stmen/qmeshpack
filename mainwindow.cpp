@@ -14,6 +14,7 @@
 #include <functional>
 #include <cstdlib>
 #include <iostream>
+#include <cassert>
 #include "image.h"
 #include "mesh.h"
 #include "GLView.h"
@@ -51,8 +52,8 @@ MainWindow::MainWindow() : QMainWindow()
 	QSettings settings("Konstantin", APP_NAME);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
-	_conversionFactor = qvariant_cast<unsigned>(settings.value("conversionFactor", 0));
-	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));
+	_conversionFactor = qvariant_cast<float>(settings.value("conversionFactor", 0));
+	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));	
 
 	_stack = new QStackedWidget(this);
 	setCentralWidget(_stack);
@@ -71,9 +72,13 @@ MainWindow::MainWindow() : QMainWindow()
 	dockWidget->setWidget(_console);
 	addDockWidget(Qt::BottomDockWidgetArea, dockWidget);
 
-	createStack();
+	createStack();	
 	createActions();
 	createMenus(); // menus depend on existing actions and some widgets like _progress*
+
+	bool doScaleImages = qvariant_cast<bool>(settings.value("scaleImages"));
+	_viewModel->setScaleImages(doScaleImages);
+	_actDoScaleImages->setChecked(doScaleImages);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +106,7 @@ void MainWindow::saveScreenshot()
 		render(&painter);
 		img.save(filename);
 	}
+	assert(0 && "unused for now");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -112,6 +118,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
 	settings.setValue("conversionFactor", _conversionFactor);
 	settings.setValue("dilation", _defaultDilationValue);
+	settings.setValue("scaleImages", _viewModel->areImagesScaled());
 	QMainWindow::closeEvent(event);
 }
 
@@ -158,7 +165,7 @@ void MainWindow::createActions()
 	_actAddFile->setStatusTip(tr("Adds a new Mesh"));
 	connect(_actAddFile, SIGNAL(triggered()), this, SLOT(dialogAddMesh()));
 
-	_actProcess = new QAction(QIcon(":images/images/reddice.png"), tr("&Process"), this);
+	_actProcess = new QAction(QIcon(":/trolltech/styles/commonstyle/images/media-play-32.png" ), tr("&Process"), this);
 	_actProcess->setShortcuts(QKeySequence::Refresh);
 	_actProcess->setStatusTip(tr("Starts combining the Meshes."));
 	connect(_actProcess, SIGNAL(triggered()), this, SLOT(processNodes()));
@@ -174,14 +181,9 @@ void MainWindow::createActions()
 	_actSetDefaultDilationValue = new QAction(QIcon(), tr("Set default &dilation value"), this);
 	_actSetDefaultDilationValue->setStatusTip(tr("Sets the default dilation value."));
 	connect(_actSetDefaultDilationValue, SIGNAL(triggered()), this, SLOT(dialogSetDefaultDilation()));
-
-	_actShowResults = new QAction(QIcon(), tr("Show &results"), this);
+	_actShowResults = new QAction(QIcon(":/trolltech/styles/commonstyle/images/viewdetailed-32.png"), tr("Show &results"), this);
 	_actShowResults->setStatusTip(tr("Shows results in the main window"));
 	connect(_actShowResults, SIGNAL(triggered()), this, SLOT(mainShowResults()));
-
-	_actShowProgress = new QAction(QIcon(), tr("Show &progress"), this);
-	_actShowProgress->setStatusTip(tr("Shows results in the main window"));
-	connect(_actShowProgress, SIGNAL(triggered()), this, SLOT(mainShowProgress()));
 
 	_actSaveScreenshot = new QAction(QIcon(":images/images/camera.png"), tr("Save &screenshot"), this);
 	_actSaveScreenshot->setStatusTip(tr("Saves a screenshot of a main window"));
@@ -204,6 +206,12 @@ void MainWindow::createActions()
 	_actMeshScale = new QAction(QIcon(), tr("&Scale"), this);
 	_actMeshScale->setStatusTip(tr("Scale this mesh"));
 	connect(_actMeshScale, SIGNAL(triggered()), this, SLOT(scaleCurrentMesh()));
+
+	_actDoScaleImages = new QAction(QIcon(), tr("Scale &images"), this);
+	_actDoScaleImages->setStatusTip(tr("Scale images"));
+	_actDoScaleImages->setCheckable(true);
+	connect(_actDoScaleImages, SIGNAL(toggled(bool)), _viewModel, SLOT(setScaleImages(bool)));
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -219,13 +227,13 @@ void MainWindow::createMenus()
 
 	menu = new QMenu(tr("&View"));
 	menu->insertAction(0, _actShowResults);
-	menu->insertAction(0, _actShowProgress);
 	menuBar()->addMenu(menu);
 
 	menu = new QMenu(tr("&Settings"));
 	menu->insertAction(0, _actSetBoxGeometry);
 	menu->insertAction(0, _actSetConversionFactor);
 	menu->insertAction(0, _actSetDefaultDilationValue);
+	menu->insertAction(0, _actDoScaleImages);
 	menuBar()->addMenu(menu);
 
 	menu = new QMenu(tr("&Help"));
@@ -239,6 +247,7 @@ void MainWindow::createMenus()
 	//_toolMain->insertAction(0, _actSaveScreenshot);
 	_toolMain->insertAction(0, _actSaveResults);
 	_toolMain->insertAction(0, _actStop);
+	_toolMain->insertAction(0, _actShowResults);
 	_toolMain->addSeparator();
 
 	QWidgetAction* action = new QWidgetAction(this);
@@ -280,7 +289,9 @@ void MainWindow::createStack()
 	label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 	_stack->addWidget(label);
 
-	_stack->addWidget(new GLView(_modelMeshFiles));
+	GLView* boxView = new GLView(_modelMeshFiles);
+	connect(_threadPacker, SIGNAL(processingDone()), boxView, SLOT(updateGL()));
+	_stack->addWidget(boxView);
 	_viewModel = new ModelView(this);
 	_stack->addWidget(_viewModel);
 
@@ -293,9 +304,17 @@ void MainWindow::createStack()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::mainNodeSelected(const QModelIndex & index)
 {
-	Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
-	_viewModel->setNode(node);
-	_stack->setCurrentIndex(VIEW_MODEL);
+	if (index.isValid())
+	{
+		Node* node = (Node*)_modelMeshFiles->data(index, Qt::UserRole).value<void*>();
+		_viewModel->setNode(node);
+		_stack->setCurrentIndex(VIEW_MODEL);
+	}
+	else
+	{
+		_stack->setCurrentIndex(VIEW_RESULTS);
+	}
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -515,13 +534,13 @@ void MainWindow::dialogSaveResults() const
 {
 	QString suffix;
 	QString filename = QFileDialog::getSaveFileName(0, tr("Choose a file to save to"), "",
-			"Text files (*.txt *.TXT);; OFF Files(*.off *.OFF)",
+			"Text files (*.txt *.TXT);;"
+			"OFF Files(*.off *.OFF)",
 			&suffix);
 
 	suffix = suffix.toLower();
 	if (filename.isEmpty())
 		return;
-
 
 	// what if the users did not specify a suffix...?
 	QFileInfo fileInfo(filename);
@@ -559,15 +578,6 @@ void MainWindow::dialogSaveResults() const
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::processNodes()
 {
-	_actAddFile->setEnabled(false);
-	_actMeshRemove->setEnabled(false);
-	_actMeshScale->setEnabled(false);
-	_actMeshTranslate->setEnabled(false);
-	_actProcess->setEnabled(false);
-	_actSaveResults->setEnabled(false);
-	_actSetBoxGeometry->setEnabled(false);
-	_actStop->setEnabled(true);
-
 	consolePrint(tr("processing meshes"));
 	if (_modelMeshFiles->numNodes() == 0)
 	{
@@ -593,6 +603,15 @@ void MainWindow::processNodes()
 				return;
 			}
 		}
+
+		_actAddFile->setEnabled(false);
+		_actMeshRemove->setEnabled(false);
+		_actMeshScale->setEnabled(false);
+		_actMeshTranslate->setEnabled(false);
+		_actProcess->setEnabled(false);
+		_actSaveResults->setEnabled(false);
+		_actSetBoxGeometry->setEnabled(false);
+		_actStop->setEnabled(true);
 
 		_modelMeshFiles->sortByBBoxSize();
 		consolePrint(tr("starting processing thread"));

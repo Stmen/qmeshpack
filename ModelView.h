@@ -13,17 +13,17 @@ class ModelView : public QSplitter
 	QLabel*	_labelBottom;
 	GLView*	_glView;
 
-	bool	_uiScaleImages;
-
 public:
 
 	explicit ModelView(QWidget *parent = 0);
-	GLView*	getGLView() const { return _glView; }
+	GLView*	getGLView() const { return _glView; }	
 
 signals:
 	
 public slots:
 
-	void setNode(Node* node);
+	void	setNode(Node* node);
+	void	setScaleImages(bool doScale);
+	bool	areImagesScaled() const { return _labelTop->hasScaledContents(); }
 
 };

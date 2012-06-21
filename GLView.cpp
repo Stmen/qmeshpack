@@ -157,6 +157,9 @@ void GLView::paintGL()
 
 		if (_drawPackBox)
 		{
+#ifdef USE_LIGHTING
+			glDisable(GL_LIGHTING);
+#endif
 			glColor3f(1., 1., 0.);
 			glEnableClientState(GL_VERTEX_ARRAY);
 			drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes->getGeometry());
@@ -164,9 +167,6 @@ void GLView::paintGL()
 		}
 	}
 
-#ifdef USE_LIGHTING
-    glDisable(GL_LIGHTING);
-#endif
 
 	//*/
 
