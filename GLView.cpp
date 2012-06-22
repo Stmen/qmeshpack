@@ -35,7 +35,7 @@ GLView::GLView(const NodeModel* nodes, QWidget* parent) :
 	setAutoBufferSwap(false);
 	_mouseLast = QPoint(0., 0.);
 	_cam.setToIdentity();
-	_cam.translate(QVector3D(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2.4));	
+	_cam.translate(QVector3D(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2));
 	connect(nodes, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
@@ -53,7 +53,7 @@ void GLView::setNode(const Node* node)
 	_node = node;
 	_cam.setToIdentity();
 	QVector3D geom = node->getMesh()->getGeometry();
-    QVector3D pos = node->getPos() + QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 3);
+	QVector3D pos = node->getPos() + QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 2);
     _cam.translate(pos);
 	updateGL();
 }
@@ -109,7 +109,7 @@ void GLView::resizeGL(int width, int height)
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	glFrustum(-(float)width * 0.001, (float)width *  0.001, -(float)height *  0.001, (float)height *  0.001, 1., 5000);
+	glFrustum(-(float)width * 0.001, (float)width *  0.001, -(float)height *  0.001, (float)height *  0.001, 1., 10000);
 	glMatrixMode(GL_MODELVIEW);
 }
 
@@ -208,22 +208,25 @@ void GLView::mouseMoveEvent(QMouseEvent *event)
             geometry = _nodes->getGeometry();
         }
 
-        QVector3D offset = origin + geometry / 2.;
-        mat.translate(offset);
+		//geometry = QVector3D(geometry.x(), geometry.y(), geometry.z());
+		QVector3D offset = origin + geometry / 2;
 
+#ifdef CAMERA_CENTERED
+		mat.translate(offset);
 		if (delta.x())
 			mat.rotate(delta.x(), _cam.column(1).toVector3D());
 		if (delta.y())
 			mat.rotate(delta.y(), _cam.column(0).toVector3D());
-
-        mat.translate(-offset);
-
-		//_cam.translate(_nodes->getGeometry() / -2.);
+		mat.translate(-offset);
 		_cam = mat * _cam; // camera centered on (0. 0. 0.)
-		//_cam.translate(_nodes->getGeometry() / 2.);
-
-		//_cam.rotate(diff.x(), 0., 1., 0.);
-		//_cam.rotate(diff.y(), 1., 0., 0.);
+#else
+		if (delta.x())
+			mat.rotate(-delta.x(), _cam.column(1).toVector3D());
+		if (delta.y())
+			mat.rotate(-delta.y(), _cam.column(0).toVector3D());
+		//_cam.translate(offset);
+		_cam = _cam * mat;
+#endif
 	}
 	else if (event->buttons() & Qt::RightButton)
 	{

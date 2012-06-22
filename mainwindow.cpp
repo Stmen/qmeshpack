@@ -1,31 +1,34 @@
 #include "mainwindow.h"
 #include <QProgressBar>
-#include <QTableWidget>
 #include <QPainter>
 #include <QSettings>
 #include <QVBoxLayout>
 #include <QFileDialog>
 #include <QDateTime>
+#include <QScrollBar>
 #include <QDebug>
 #include <QImage>
 #include <QtConcurrentRun>
 #include <QtConcurrentMap>
 #include <QWidgetAction>
-#include <functional>
+#include <functional> // I love lamdas.
+#include <cmath>
 #include <cstdlib>
-#include <iostream>
 #include <cassert>
 #include "image.h"
-#include "mesh.h"
 #include "GLView.h"
 #include "Exception.h"
 #include "config.h"
-using namespace std;
-#include <math.h>
+
+/// theese are different views in _stack. I used the QStack to avoid unnatural geometry changes while switching different views
 #define VIEW_WELCOME 0
 #define VIEW_RESULTS 1
 #define VIEW_MODEL 2
 
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///
+///	This is mostly a small test routine to see the rendering of the triangles.
+///
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
 {
@@ -47,23 +50,29 @@ void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-MainWindow::MainWindow() : QMainWindow()
+MainWindow::MainWindow() :
+	QMainWindow(),
+	_stack(new QStackedWidget(this))
 {
 	QSettings settings("Konstantin", APP_NAME);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
-	_conversionFactor = qvariant_cast<float>(settings.value("conversionFactor", 0));
-	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));	
+	_conversionFactor = qvariant_cast<float>(settings.value("conversionFactor", 1.));
+	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));
 
-	_stack = new QStackedWidget(this);
 	setCentralWidget(_stack);
+	QVector3D box_geom = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
+	_modelMeshFiles = new NodeModel(box_geom, this);
 
+	QVector3D userGeom = box_geom * (1 / _conversionFactor);
+	QString userBoxStr = QString("(%1 %2 %3)").arg(userGeom.x()).arg(userGeom.y()).arg(userGeom.z());
+	setWindowTitle(tr(APP_NAME) + tr("  box geometry: ") + userBoxStr + tr(" user units."));
 	createMeshList();
 
 	// creating Mesh Packer	
-	_threadPacker = new MeshPacker(*_modelMeshFiles, this);
-	connect(_threadPacker, SIGNAL(processingDone()), this, SLOT(processNodesDone()));
-	connect(_threadPacker, SIGNAL(report(QString, unsigned)), this, SLOT(consolePrint(QString, unsigned)));
+	_threadWorker = new WorkerThread(*_modelMeshFiles, this);
+	connect(_threadWorker, SIGNAL(processingDone()), this, SLOT(processNodesDone()));
+	connect(_threadWorker, SIGNAL(report(QString, unsigned)), this, SLOT(consolePrint(QString, unsigned)));
 
 	// create console
 	QDockWidget* dockWidget = new QDockWidget(tr("Console"), this);
@@ -74,7 +83,7 @@ MainWindow::MainWindow() : QMainWindow()
 
 	createStack();	
 	createActions();
-	createMenus(); // menus depend on existing actions and some widgets like _progress*
+	createMenusAndToolbars(); // menus depend on existing actions and some widgets like _progress*
 
 	bool doScaleImages = qvariant_cast<bool>(settings.value("scaleImages"));
 	_viewModel->setScaleImages(doScaleImages);
@@ -125,10 +134,6 @@ void MainWindow::closeEvent(QCloseEvent *event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::createMeshList()
 {
-	QSettings settings(APP_VENDOR, APP_NAME);
-	QVector3D boxGeometry = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
-	// create mesh list
-	_modelMeshFiles = new NodeModel(boxGeometry, this);
 	_viewMeshFiles = new QTreeView(this);
 	_viewMeshFiles->setModel(_modelMeshFiles);
 	_viewMeshFiles->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
@@ -153,9 +158,9 @@ void MainWindow::createActions()
 
 	_actStop = new QAction(QIcon(":/trolltech/styles/commonstyle/images/stop-32.png"), tr("&Stop"), this);
 	_actStop->setEnabled(false);
-	connect(_actStop, SIGNAL(triggered()), _threadPacker, SLOT(shouldStop()));
+	connect(_actStop, SIGNAL(triggered()), _threadWorker, SLOT(shouldStop()));
 
-	_actExit = new QAction(QIcon(), tr("&Exit"), this);
+	_actExit = new QAction(QIcon(), tr("E&xit"), this);
 	_actExit->setShortcuts(QKeySequence::Close);
 	_actExit->setStatusTip(tr("Exits this Application"));
 	connect(_actExit, SIGNAL(triggered()), qApp, SLOT(quit()));
@@ -215,12 +220,12 @@ void MainWindow::createActions()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::createMenus()
+void MainWindow::createMenusAndToolbars()
 {
+	//-----------[ menus ]----------------
 	QMenu* menu = new QMenu(tr("&File"));
 	menu->insertAction(0, _actAddFile);
 	menu->insertAction(0, _actProcess);
-	//menu->insertAction(0, _actRmFile);
 	menu->addSeparator();
 	menu->insertAction(0, _actExit);
 	menuBar()->addMenu(menu);
@@ -237,10 +242,11 @@ void MainWindow::createMenus()
 	menuBar()->addMenu(menu);
 
 	menu = new QMenu(tr("&Help"));
-	connect(menu->addAction(tr("About QT")), SIGNAL(triggered()), qApp, SLOT(aboutQt()));
-	connect(menu->addAction("About " APP_NAME), SIGNAL(triggered()), this, SLOT(aboutThisApp()));
+	connect(menu->addAction(tr("About ") + "QT"), SIGNAL(triggered()), qApp, SLOT(aboutQt()));
+	connect(menu->addAction(tr("About ") + APP_NAME), SIGNAL(triggered()), this, SLOT(aboutThisApp()));
 	menuBar()->addMenu(menu);
 
+	//-----------[ toolbars ]----------------
 	_toolMain = addToolBar(tr("Main toolbar"));
 	_toolMain->insertAction(0, _actAddFile);
 	_toolMain->insertAction(0, _actProcess);
@@ -250,16 +256,15 @@ void MainWindow::createMenus()
 	_toolMain->insertAction(0, _actShowResults);
 	_toolMain->addSeparator();
 
+	//-----------[ progress bar inside the toolbar ]----------------
 	QWidgetAction* action = new QWidgetAction(this);
-	// setup progressbar here
 	action->setDefaultWidget(_progressWidget);
 	_toolMain->addAction(action);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::createStatusBar()
-{
-
+{	
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -290,7 +295,7 @@ void MainWindow::createStack()
 	_stack->addWidget(label);
 
 	GLView* boxView = new GLView(_modelMeshFiles);
-	connect(_threadPacker, SIGNAL(processingDone()), boxView, SLOT(updateGL()));
+	connect(_threadWorker, SIGNAL(processingDone()), boxView, SLOT(updateGL()));
 	_stack->addWidget(boxView);
 	_viewModel = new ModelView(this);
 	_stack->addWidget(_viewModel);
@@ -298,7 +303,7 @@ void MainWindow::createStack()
 	_progressWidget = new QProgressBar();
 	_progressWidget->setEnabled(false);
 
-	connect(_threadPacker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)));
+	connect(_threadWorker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -357,7 +362,7 @@ void MainWindow::removeCurrentNode()
 void MainWindow::transformCurrentMesh()
 {
 	QString msg = tr("transforming by");
-	VectorInputDialog dialog(this, msg);
+	VectorInputDialog dialog(this, msg, "");
 	int code = dialog.exec();
 	if (code == 1) // accepted
 	{
@@ -373,7 +378,7 @@ void MainWindow::transformCurrentMesh()
 void MainWindow::scaleCurrentMesh()
 {
 	QString msg = tr("Scaling by");
-	VectorInputDialog dialog(this, msg, QVector3D(1., 1., 1.));
+	VectorInputDialog dialog(this, msg, "", QVector3D(1., 1., 1.));
 
 	int code = dialog.exec();
 	if (code == 1) // accepted
@@ -390,18 +395,27 @@ void MainWindow::scaleCurrentMesh()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogSetBoxGeometry()
 {
-	QString msg = tr("Setting box geometry to ");
-	VectorInputDialog dialog(this, msg, _modelMeshFiles->getGeometry());
+	QVector3D conv(_conversionFactor, _conversionFactor, _conversionFactor);
+	QVector3D invConv = QVector3D(1., 1., 1.) / _conversionFactor;
+
+	VectorInputDialog dialog(this, tr("Box geometry in user defined units.\n"),
+									  tr("Box geometry in user defined units.\n"
+										 "Define your own units through the conversion factor\n"
+										 "The resulting box in application units is then (x, y, z) * <conversion factor>."
+										 ), _modelMeshFiles->getGeometry() * invConv);
 
 	int code = dialog.exec();
 	if (code == 1) // accepted
 	{
-		QVector3D result = floor(dialog.getResult());
+		QVector3D userResult = floor(dialog.getResult());
+		QVector3D result = floor(dialog.getResult() * conv);
 		if (result.x() > 0 and result.y() > 0 and result.z() > 0)
 		{
-			QDebug(&msg) << dialog.getResult();
-			consolePrint(msg);
-			_modelMeshFiles->setGeometry(dialog.getResult());
+			QString userStr = QString("(%1 %2 %3)").arg(userResult.x()).arg(userResult.y()).arg(userResult.z());
+			setWindowTitle(tr(APP_NAME) + tr("  box geometry: ") + userStr + tr(" user units."));
+			QString resultStr = QString("(%1 %2 %3)").arg(result.x()).arg(result.y()).arg(result.z());
+			consolePrint(tr("Setting box geometry to ") + resultStr + " application units.");
+			_modelMeshFiles->setGeometry(result);
 		}
 		else
 			consolePrint(tr("Bad input"), 2);
@@ -437,7 +451,7 @@ void MainWindow::dialogSetDefaultDilation()
 	}
 }
 
-/*
+
 struct NodeInfo
 {
     QString filename;
@@ -445,14 +459,19 @@ struct NodeInfo
 	unsigned dilation;
 };
 
+struct MeshInfo
+{
+	QString filename;
+	QVector3D pos;
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::loadList(QString filename)
+static void txtToList(QString filename, QList<MeshInfo>& mesh_infos)
 {
 	QFile file(filename);
 	if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
 		throw Exception("Unable to open file %s: %s", filename.toUtf8().constData(), file.errorString().toUtf8().constData());
 
-	std::vector<NodeInfo> nodeInfos;
 
 	while (not file.atEnd() and file.isReadable())
 	{
@@ -464,42 +483,23 @@ void MainWindow::loadList(QString filename)
 		if (off_filename.isEmpty())
 			continue;
 
-		double x = list.at(1).toDouble(), y = list.at(2).toDouble(), z = list.at(3).toDouble();
-		NodeInfo n = {off_filename, QVector3D(x, y, z), _defaultDilationValue };
-		nodeInfos.push_back(n);
-	}
-
-	unsigned sz = nodeInfos.size();
-	Node* nodes[sz];
-
-	//#pragma omp parallel for
-	for (unsigned i = 0; i < sz; i++)
-	{
-		NodeInfo info = nodeInfos[i];
-		nodes[i] = new Node(info.filename, info.dilation);
-		nodes[i]->setPos(info.position);
-	}
-
-	for (unsigned i = 0; i < sz; i++)
-	{
-		QVector3D pos = nodes[i]->getPos();
-		consolePrint(QString("opened \"%1\" at (%2 %3 %4)").arg(nodes[i]->getMesh()->getName())
-					 .arg(pos.x()).arg(pos.y()).arg(pos.z()));
-		_modelMeshFiles->addNode(nodes[i]);
+		MeshInfo m = { off_filename, QVector3D(list.at(1).toDouble(), list.at(2).toDouble(), list.at(3).toDouble()) };
+		mesh_infos.push_back(m);
 	}
 }
-*/
+
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogAddMesh()
 {
-	QFileDialog dialog(this);
-		//dialog.setDirectory(QDir::homePath());
+	QFileDialog dialog(this,
+		  /* caption = */ tr("Save resuslts as"),
+		  /* directory = */ "",
+		  "OFF meshes (*.off *.OFF);;"
+		  "TXT mesh list(*.txt *.TXT)");
+
 	dialog.setFileMode(QFileDialog::ExistingFiles);
-	dialog.setNameFilter(tr("OFF meshes (*.off *.OFF);; "
-								// "All files (*.*)"
-								));
 	if (not dialog.exec())
 		return;
 
@@ -507,13 +507,38 @@ void MainWindow::dialogAddMesh()
 	if (filenames.isEmpty())
 		return;
 
+	std::function<void (int, Node*)> nodeAdd =
+			[this](int a, Node* node) { (void)a; _modelMeshFiles->addNode(node); };
+
 	try
 	{
-		std::function<Node* (const QString& str)> createNode =
-				[this](const QString& str) { return new Node(str.toUtf8().constData(), _defaultDilationValue); };
-		std::function<void (int, Node*)> add = [this](int a, Node* node) { (void)a; _modelMeshFiles->addNode(node); };
+		if (dialog.selectedNameFilter().at(0) == 'O')
+		{
+			std::function<Node* (const QString& str)> nodeCreate =
+					[this](const QString& str)
+					{
+						return new Node(str.toUtf8().constData(), _defaultDilationValue);
+					};
 
-		QtConcurrent::blockingMappedReduced<int>(filenames, createNode, add, QtConcurrent::UnorderedReduce);
+			QtConcurrent::blockingMappedReduced<int>(filenames, nodeCreate, nodeAdd, QtConcurrent::UnorderedReduce);
+		}
+		else if (dialog.selectedNameFilter().at(0) == 'T')
+		{
+			QList<MeshInfo> mesh_infos;
+
+			for (int i = 0; i < filenames.size(); i++)
+				txtToList(filenames.at(i), mesh_infos);
+
+			std::function<Node* (const MeshInfo& info)> nodeCreate =
+					[this](const MeshInfo& info)
+					{
+						Node* node = new Node(info.filename.toUtf8().constData(), _defaultDilationValue);
+						node->setPos(info.pos);
+						return node;
+					};
+
+			QtConcurrent::blockingMappedReduced<int>(mesh_infos, nodeCreate, nodeAdd, QtConcurrent::UnorderedReduce);
+		}
 	}
 	catch (const std::exception& ex)
 	{
@@ -530,30 +555,58 @@ void MainWindow::dialogAddMesh()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::dialogSaveResults() const
+void MainWindow::startWorker(WorkerThread::Task task, QString arg)
 {
+	_actAddFile->setEnabled(false);
+	_actMeshRemove->setEnabled(false);
+	_actMeshScale->setEnabled(false);
+	_actMeshTranslate->setEnabled(false);
+	_actProcess->setEnabled(false);
+	_actSaveResults->setEnabled(false);
+	_actSetBoxGeometry->setEnabled(false);
+	_actStop->setEnabled(true);
+	if (not arg.isEmpty())
+		_threadWorker->setArgument(arg);
+	_threadWorker->setTask(task);
+	_progressWidget->setRange(0, _threadWorker->maxProgress());
+	_progressWidget->setEnabled(true);
+	_threadWorker->start();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void MainWindow::dialogSaveResults()
+{
+	if(_modelMeshFiles->numNodes() == 0)
+	{
+		consolePrint(tr("no nodes to save"), 2);
+		return;
+	}
+
 	QString suffix;
 	QString filename = QFileDialog::getSaveFileName(0, tr("Choose a file to save to"), "",
-			"Text files (*.txt *.TXT);;"
+			"TXT files (*.txt *.TXT);;"
 			"OFF Files(*.off *.OFF)",
 			&suffix);
 
-	suffix = suffix.toLower();
 	if (filename.isEmpty())
 		return;
+
 
 	// what if the users did not specify a suffix...?
 	QFileInfo fileInfo(filename);
 	if (fileInfo.suffix().isEmpty())
-		filename += suffix;
-
-	qDebug() << "suffix was " << suffix;
-	if (suffix == "off")
 	{
-		consolePrint(QString("saving results to an OFF mesh \"%1\"").arg(filename));
-		_modelMeshFiles->getNode(0)->getMesh()->save("test.off");
+		suffix.resize(3);
+		filename += '.';
+		filename += suffix;
 	}
-	else if (suffix == "txt")
+
+	if (suffix.at(0) == 'O')
+	{		
+		consolePrint(tr("saving results to an OFF mesh \"%1\"").arg(filename));
+		startWorker(WorkerThread::SaveMeshList, filename);
+	}
+	else if (suffix.at(0) == 'T')
 	{
 		QFile file(filename);
 		if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
@@ -604,22 +657,9 @@ void MainWindow::processNodes()
 			}
 		}
 
-		_actAddFile->setEnabled(false);
-		_actMeshRemove->setEnabled(false);
-		_actMeshScale->setEnabled(false);
-		_actMeshTranslate->setEnabled(false);
-		_actProcess->setEnabled(false);
-		_actSaveResults->setEnabled(false);
-		_actSetBoxGeometry->setEnabled(false);
-		_actStop->setEnabled(true);
-
-		_modelMeshFiles->sortByBBoxSize();
 		consolePrint(tr("starting processing thread"));
-		//_stack->setCurrentIndex(VIEW_PROGRESS);
-		_progressWidget->setRange(0, _threadPacker->maxProgress());
-		_progressWidget->setEnabled(true);
-
-		_threadPacker->start();
+		_modelMeshFiles->sortByBBoxSize();
+		startWorker(WorkerThread::ComputePositions);
 	}
 }
 
@@ -666,11 +706,16 @@ void MainWindow::consolePrint(QString str, unsigned level) const
 	cursor.movePosition(QTextCursor::Start);
 
 	_console->insertHtml(text);
+	QScrollBar* scrollBar = _console->verticalScrollBar();
+	scrollBar->setValue(scrollBar->maximum());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::aboutThisApp()
 {
-    const char* msg = "This is \"" APP_NAME "\" by Konstantin Schlese, nulleight@gmail.com";
-	QMessageBox::information(this, tr(APP_NAME), tr(msg));
+	QString msg = tr("This is \"") + QString(APP_NAME) +
+				  QString("\"\nby Konstantin Schlese (nulleight@gmail.com).\n") +
+				  QString("Application version: %1\n").arg(qApp->applicationVersion()) +
+				  QString(__DATE__) + QString(" Hamburg");
+	QMessageBox::information(this, tr(APP_NAME), msg);
 }

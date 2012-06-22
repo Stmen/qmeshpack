@@ -8,34 +8,35 @@
 struct Triangle
 {
 	QVector3D vertex[3]; /// vertices of this triangle.
-	static const unsigned NUM_VERTICES = 3;
+	static const unsigned NUM_VERTICES = 3; /// triangle has 3 vertices (at least in this universe)
 };
 
-/// this class represents the OFF Mesh.
+/// this class represents 3D Mesh.
 class Mesh
 {    
 public:
 
-
-	Mesh(std::vector<Mesh*>& meshes, double scaleFactor);
-    Mesh(const char* off_filename);
+	Mesh(const Mesh& other); /// copy constructor
+	Mesh(const char* off_filename); /// OFF mesh constructor.
     ~Mesh();
+	void		add(const Mesh& other, const QVector3D offset); /// accumulation of meshes.
 	QVector3D	getMax() const { return _max; }
 	QVector3D   getMin() const { return _min; }
-	QVector3D	getGeometry() const { return _max - _min; }
+	QVector3D	getGeometry() const { return _max - _min; } /// mesh BBox
 	size_t		numVertices() const { return _vertices.size(); }
 	QVector3D   getVertex(unsigned idx) const;
 	void		setVertex(unsigned idx, QVector3D newVertex);
 	void		resetMinMax(); /// recalculates minimum and maximum coordinates.
-	void		scale(const QVector3D factor); /// scales the Mesh by some factors.
-	void		translate(const QVector3D offset);
+	void		scale(const QVector3D factor); /// scales this mesh by some factor.
+	void		translate(const QVector3D offset); /// translates all vertices in this mesh by some offset
 	QString		getName() const { return _name; }
 	void		setName(QString name) { _name = name; }
 	QString		getFilename() const { return _filename; }
-	void		recalcMinMax();
+	void		recalcMinMax(); /// reexamines all vertices and determines new minimum and maximum values.
 	void		draw(bool drawAABB = true) const;
 	void		buildNormals();
 	void		save(QString filename) const;
+
 
     /// this class is used to iterate over the Triangles of a Mesh.
     class Iterator : public ::Iterator<Triangle>
@@ -60,11 +61,12 @@ public:
 private:
 
 	std::vector<QVector3D>	_vertices;  /// this array stores vertix triples of floats, which represent the vertices
-    QVector3D*  _normals;  /// this array stores vertix triples of floats, which represent the vertices
+	QVector3D*				_normals;  /// this array stores vertix triples of floats, which represent the vertices
 	std::vector<unsigned>   _triangleIndices; /// this array hold index triples of the triangles.
 	QVector3D               _min; /// minimum x, y, z in this Mesh
 	QVector3D               _max; /// maximum x, y, z in this Mesh
-	QString                 _name, _filename;
+	QString                 _name;
+	QString					_filename; /// filename, that is the source of this mesh. It is empty if this is an aggregate.
 
 };
 

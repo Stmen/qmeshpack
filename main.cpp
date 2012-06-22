@@ -1,8 +1,10 @@
 #include "mainwindow.h"
+#include <QVector3D>
 
 int main(int argc, char** argv)
 {    
 	QApplication app(argc, argv);
+	app.setApplicationVersion(APP_VERSION);
 	app.setStyleSheet("QSplitter::handle { background-color: gray }");
 	MainWindow win;
 	win.show();

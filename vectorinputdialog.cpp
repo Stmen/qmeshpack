@@ -1,9 +1,10 @@
 #include "vectorinputdialog.h"
 #include <QGridLayout>
 #include <QDialogButtonBox>
+#include <QLabel>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-VectorInputDialog::VectorInputDialog(QWidget *parent, QString title, QVector3D default_input) :
+VectorInputDialog::VectorInputDialog(QWidget *parent, QString title, QString text, QVector3D default_input) :
     QDialog(parent)
 {
 	_x = new QDoubleSpinBox(this);
@@ -16,15 +17,16 @@ VectorInputDialog::VectorInputDialog(QWidget *parent, QString title, QVector3D d
 	_y->setValue(default_input.y());
 	_z->setValue(default_input.z());
 
-
+	QLabel* label = new QLabel(this);
+	label->setText(text);
 
 	QGridLayout* layout = new QGridLayout(this);
-
-	layout->addWidget(_x, 0 ,0);
-	layout->addWidget(_y, 0 ,1);
-	layout->addWidget(_z, 0 ,2);
+	layout->addWidget(label, 0, 0, 1, 3);
+	layout->addWidget(_x, 1 ,0);
+	layout->addWidget(_y, 1 ,1);
+	layout->addWidget(_z, 1 ,2);
 	QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, this);
-	layout->addWidget(buttonBox, 1, 0, 1, 3);
+	layout->addWidget(buttonBox, 2, 0, 1, 3, Qt::AlignCenter);
 	setLayout(layout);
 
 	connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));

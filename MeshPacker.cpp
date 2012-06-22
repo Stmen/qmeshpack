@@ -5,8 +5,8 @@
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-MeshPacker::MeshPacker(NodeModel &nodes, QObject *parent) :
-	QThread(parent), _nodes(nodes)
+WorkerThread::WorkerThread(NodeModel &nodes, QObject *parent) :
+	QThread(parent), _task(ComputePositions), _nodes(nodes)
 {
 }
 
@@ -15,22 +15,56 @@ MeshPacker::MeshPacker(NodeModel &nodes, QObject *parent) :
 /// Returns maximum number, that the reportProgress() signal will report.
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-size_t MeshPacker::maxProgress() const
+size_t WorkerThread::maxProgress() const
 {
 	size_t progress = 0;
-	for (unsigned i = 0; i < _nodes.numNodes(); i++)
+	if (_task == ComputePositions)
 	{
-		Node* node = _nodes.getNode(i);
-		QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
-		progress += max.x() * max.y();
+		for (unsigned i = 0; i < _nodes.numNodes(); i++)
+		{
+			Node* node = _nodes.getNode(i);
+			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
+			progress += max.x() * max.y();
+		}
+	}
+	else
+	{
+		return _nodes.numNodes();
 	}
 	return progress;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MeshPacker::run()
+void WorkerThread::saveNodeList()
+{
+	const Node* node = _nodes.getNode(0);
+	//emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+	Mesh aggregate(*node->getMesh());
+
+	for (unsigned i = 1; i < _nodes.numNodes(); i++)
+	{
+		emit reportProgress(i);
+		node = _nodes.getNode(i);
+		//emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+		aggregate.add(*node->getMesh(), node->getPos());
+	}
+	aggregate.save(_arg);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void WorkerThread::run()
 {
 	_shouldStop = false;
+	if (_task == ComputePositions)
+		computePositions();
+	else if (_task == SaveMeshList)
+		saveNodeList();
+	emit processingDone();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void WorkerThread::computePositions()
+{	
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y(), /* clear color = */ 0.);
     QAtomicInt progress_atom(0);
 	for (size_t i = 0; i < _nodes.numNodes(); i++)
@@ -111,7 +145,5 @@ void MeshPacker::run()
 		node->setPos(newPos);
         _nodes.nodePositionChanged(i);
 	}
-
-	emit processingDone();
     #pragma omp flush
 }

@@ -6,6 +6,7 @@
 #include <cassert>
 #include <map>
 #include <vector>
+#include <cstring>
 #include "config.h"
 #include "mesh.h"
 #include "Exception.h"
@@ -15,39 +16,28 @@
 
 using namespace std;
 
-Mesh::Mesh(std::vector<Mesh*>& meshes, double scaleFactor)
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+Mesh::Mesh(const Mesh& other) :
+	_vertices(other._vertices.size()),
+	_normals(0),
+	_triangleIndices(other._triangleIndices.size()),
+	_min(other._min),
+	_max(other._max),
+	_name(other._name),
+	_filename(other._filename)
 {
-	size_t numVertices = 0;
-	size_t numTriangleIndices = 0;
-	for (unsigned i = 0; i < meshes.size(); i++)
+	memcpy(&_vertices[0], &other._vertices[0], _vertices.size() * sizeof(_vertices[0]));
+	if (other._normals)
 	{
-		numVertices += meshes[i]->_triangleIndices.size();
-		numTriangleIndices += meshes[i]->_vertices.size();
+		_normals = new QVector3D[_vertices.size()];
+		memcpy(_normals, other._normals, _vertices.size() * sizeof(QVector3D));
 	}
-
-	_triangleIndices.resize(numTriangleIndices);
-	_vertices.resize(numVertices);
-
-	size_t vDest = 0;
-	size_t tDest = 0;
-	for (unsigned i = 0; i < meshes.size(); i++)
-	{
-		size_t sz = meshes[i]->_vertices.size() * sizeof(_vertices[0]);
-		memcpy(&_vertices[vDest], &meshes[i]->_vertices[0], sz);
-		vDest += sz;
-
-		sz = meshes[i]->_triangleIndices.size() * sizeof(_triangleIndices[0]);
-		memcpy(&_triangleIndices[vDest], &meshes[i]->_triangleIndices[0], sz);
-		tDest += sz;
-	}
-
-	if (scaleFactor != 0)
-	{
-
-	}
+	memcpy(&_triangleIndices[0], &other._triangleIndices[0], _triangleIndices.size() * sizeof(_triangleIndices[0]));
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 Mesh::Mesh(const char* off_filename) :
+	_normals(0),
 	_min(INFINITY, INFINITY, INFINITY),
 	_max(-INFINITY, -INFINITY, -INFINITY)
 {    
@@ -159,7 +149,40 @@ Mesh::Mesh(const char* off_filename) :
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Mesh::~Mesh()
 {
-    delete [] _normals;
+	if (_normals)
+		delete [] _normals;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void Mesh::add(const Mesh& other, const QVector3D offset)
+{
+	_filename.clear();
+
+	size_t oldVertSize = _vertices.size();
+	_vertices.resize(oldVertSize + other._vertices.size());
+	for (unsigned i = 0; i < other._vertices.size(); i++)
+		_vertices[oldVertSize + i] = other._vertices[i] + offset;
+
+	if (_normals)
+	{
+		QVector3D* old_normals = _normals;
+		_normals = new QVector3D[_vertices.size()];
+		memcpy(_normals, old_normals, oldVertSize * sizeof(QVector3D));
+		if (other._normals)
+			memcpy(&_normals[oldVertSize], other._normals, other._vertices.size() * sizeof(QVector3D));
+		else
+			memset(&_normals[oldVertSize], 0, other._vertices.size() * sizeof(QVector3D));
+		delete [] old_normals;
+	}
+
+	size_t oldTriSize = _triangleIndices.size();
+	_triangleIndices.resize(oldTriSize + other._triangleIndices.size());
+	for (unsigned i = 0; i < other._triangleIndices.size(); i++)
+		_triangleIndices[oldTriSize + i] = other._triangleIndices[i] + oldVertSize; // adjusting the indices.
+
+	_min = vecmin(_min, other._min);
+	_max = vecmax(_max, other._max);
+	_name = QString("%1+%2").arg(_name).arg(other._name);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -262,7 +285,7 @@ void Mesh::recalcMinMax()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::buildNormals()
 {
-    typedef std::map</* index = */unsigned, /* normals = */ std::vector<QVector3D>*> Normals;
+	typedef QMap</* index = */unsigned, /* normals = */ std::vector<QVector3D>*> Normals;
     Normals normals;
 
 	for (unsigned i = 0; i < _triangleIndices.size(); i += 3)
@@ -275,33 +298,34 @@ void Mesh::buildNormals()
 			_vertices[indices[2]]
 		};
 
+		QVector3D normal = QVector3D::crossProduct(
+							   vertex[1] - vertex[0],
+							   vertex[2] - vertex[0]).normalized();
 
-		QVector3D normal = QVector3D::crossProduct(vertex[1] - vertex[0], vertex[2] - vertex[0]).normalized();
         for (unsigned j = 0; j < 3; j++)
         {
 			Normals::iterator it = normals.find(indices[j]);
             if (it == normals.end())
             {
-				it = normals.insert(make_pair(indices[j], new std::vector<QVector3D>)).first;
+				it = normals.insert(indices[j], new std::vector<QVector3D>);
             }
-            it->second->push_back(normal);
+			it.value()->push_back(normal);
         }
 	}
 
+	if (_normals)
+		delete [] _normals;
 	_normals = new QVector3D[_vertices.size()];
-
-	//assert(_vertices.size() == normals.size());
 
     for (Normals::iterator it = normals.begin(); it != normals.end(); ++it)
     {
-        std::vector<QVector3D>* vec = it->second;
+		std::vector<QVector3D>* vec = it.value();
         QVector3D normal(0., 0., 0.);
         for (unsigned i = 0; i < vec->size(); i++)
-        {
             normal += vec->at(i);
-        }
+
         normal.normalize();
-		unsigned idx = it->first;
+		unsigned idx = it.key();
 		_normals[idx] = normal;
     }
 }
@@ -372,6 +396,7 @@ void drawAxisAlignedBox(QVector3D min, QVector3D max)
 	glDrawElements(GL_LINE_STRIP, sizeof(indices) / sizeof(indices[0]), GL_UNSIGNED_INT, indices);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::draw(bool drawAABB) const
 {	
 	glEnableClientState(GL_VERTEX_ARRAY);
@@ -380,11 +405,11 @@ void Mesh::draw(bool drawAABB) const
 
 #ifdef USE_LIGHTING
 	glEnableClientState(GL_NORMAL_ARRAY);
-	glNormalPointer(GL_FLOAT, 0, (void*)_normals);
+	glNormalPointer(GL_FLOAT, sizeof(QVector3D), (void*)_normals);
 #endif
 
 	//glVertexPointer(/* num components */ 3, GL_FLOAT, sizeof(QVector3D), &_vertices[0]);
-	glVertexPointer(3, GL_FLOAT, 0, &_vertices[0]);
+	glVertexPointer(3, GL_FLOAT, sizeof(QVector3D), &_vertices[0]);
 
 
 

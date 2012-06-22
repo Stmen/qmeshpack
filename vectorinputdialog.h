@@ -14,7 +14,7 @@ class VectorInputDialog : public QDialog
 	QDoubleSpinBox* _z;
 
 public:
-	explicit VectorInputDialog(QWidget *parent = 0, QString title = "Input vector", QVector3D default_input = QVector3D(0., 0., 0.));
+	explicit VectorInputDialog(QWidget *parent, QString title, QString text, QVector3D default_input = QVector3D(0., 0., 0.));
 	QVector3D getResult() const { return QVector3D(_x->value(), _y->value(), _z->value()); }
 
 signals:

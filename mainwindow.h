@@ -41,7 +41,7 @@ class MainWindow : public QMainWindow
 	ModelView*		_viewModel;
 	QProgressBar*	_progressWidget;
 	QToolBar*       _toolMain;
-	MeshPacker*		_threadPacker;
+	WorkerThread*		_threadWorker;
 	QTextEdit*		_console;
 
 	QStackedWidget*	_stack;
@@ -72,9 +72,10 @@ class MainWindow : public QMainWindow
 
 	void createMeshList();
     void createActions();
-	void createMenus();
+	void createMenusAndToolbars();
 	void createStatusBar();
 	void createStack();
+	void startWorker(WorkerThread::Task task, QString arg = QString());
 
 public slots:
 
@@ -92,7 +93,7 @@ public slots:
 	void processNodesDone();
 	void consolePrint(QString str, unsigned level = 0) const;
 	void saveScreenshot();
-	void dialogSaveResults() const;
+	void dialogSaveResults();
 private:
 
 private slots:
