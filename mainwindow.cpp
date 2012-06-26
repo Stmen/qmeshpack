@@ -694,7 +694,7 @@ void MainWindow::processNodesDone()
 	_actSetBoxGeometry->setEnabled(true);
 	_actStop->setEnabled(false);
 
-	consolePrint("processing done");
+	consolePrint(tr("processing done in %1 milliseconds.").arg(QString::number(_threadWorker->getLastProcessingMSecs())));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

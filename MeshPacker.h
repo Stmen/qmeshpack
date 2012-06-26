@@ -21,7 +21,7 @@ public:
 	size_t	maxProgress() const;
 	void	setTask(Task task) { _task = task; }
 	void	setArgument(QString arg) { _arg = arg; }
-
+	quint64	getLastProcessingMSecs() const { return _lastProcessingMSecs; }
 protected:
 	void run();
 
@@ -46,7 +46,7 @@ private:
 	NodeModel&			_nodes;
 	bool				_shouldStop;
 	QString				_arg;
-
+	quint64				_lastProcessingMSecs;
 };
 
 #endif // MESHPACKER_H

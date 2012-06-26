@@ -2,7 +2,7 @@
 #include <cassert>
 #include <omp.h>
 #include <QAtomicInt>
-
+#include <QDateTime>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 WorkerThread::WorkerThread(NodeModel &nodes, QObject *parent) :
@@ -54,11 +54,14 @@ void WorkerThread::saveNodeList()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::run()
 {
+	quint64 time = QDateTime::currentDateTime().toMSecsSinceEpoch();
 	_shouldStop = false;
 	if (_task == ComputePositions)
 		computePositions();
 	else if (_task == SaveMeshList)
 		saveNodeList();
+	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
+
 	emit processingDone();
 }
 
