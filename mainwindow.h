@@ -75,6 +75,7 @@ class MainWindow : public QMainWindow
 	void createMenusAndToolbars();
 	void createStatusBar();
 	void createStack();
+
 	void startWorker(WorkerThread::Task task, QString arg = QString());
 
 public slots:
@@ -94,6 +95,8 @@ public slots:
 	void consolePrint(QString str, unsigned level = 0) const;
 	void saveScreenshot();
 	void dialogSaveResults();
+	void updateWindowTitle();
+
 private:
 
 private slots:

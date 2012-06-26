@@ -96,7 +96,17 @@ void Image::clear(float value)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 bool Image::pixelIsInside(int x, int y)
 {
-	return x >= 0 and x < (float)_width and y >= 0 and y < (float)_height;
+	return x >= 0 and x < (int)_width and y >= 0 and y < (int)_height;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void Image::updateMinMax(ColorType color)
+{
+	if (color != -INFINITY)
+		_minColor = std::min(_minColor, color);
+
+	if (color != INFINITY)
+		_maxColor = std::max(_maxColor, color);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,8 +116,7 @@ void Image::setPixel(unsigned x, unsigned y, ColorType pixel)
 	assert(y < _height);
 
     _data[y * _width + x] = pixel;
-    _minColor = std::min(_minColor, pixel);
-    _maxColor = std::max(_maxColor, pixel);
+	updateMinMax(pixel);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -125,6 +134,13 @@ QImage Image::toQImage() const
         for (unsigned y = 0; y < _height; y++)
         {
 			ColorType colorValue = _data[y * _width + x];
+
+			// infinity should signify transparent regions.
+			if (colorValue == -INFINITY)
+				colorValue = _minColor;
+			else if (colorValue == INFINITY)
+				colorValue = _maxColor;
+
 			int color = ((colorValue - _minColor) * colorStep);
 			assert(color >= 0 and color < 256);
 			unsigned rgbColor =  (color << 16) | (color << 8) | color;
@@ -224,8 +240,8 @@ void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 	{
 		for (unsigned other_x = 0; other_x < other.getWidth(); other_x++)
 		{
-			ColorType color = other.at(other_x, other_y);
-			setPixel(x + other_x, y + other_y, z + color);
+			ColorType other_z = other.at(other_x, other_y);
+			setPixel(x + other_x, y + other_y, z + other_z);
 		}
 	}
 }
@@ -247,7 +263,7 @@ float Image::computeMinZDistance(unsigned x, unsigned y, const Image &other) con
 	{
 		for (unsigned yy = 0; yy < other.getHeight(); yy++)
 		{
-			Image::ColorType dist = other.at(xx, yy) - at(x + xx, y + yy);
+			Image::ColorType dist = other.at(xx, yy) - at(x + xx, y + yy);			
 			if (dist < minDist)
 			{
 				minDist = dist;
@@ -404,13 +420,6 @@ void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(C
 				//double newValue1 = (double)start.z() + (double)span.z() * progress;
 				double newValue = z_start + (z_end - z_start) * progress;
 
-				/*
-				if (fabs (newValue - newValue1) > 2.)
-				{
-					qDebug() <<  "bla!";
-				}
-				// */
-
 				if (pixelIsInside(x, y))
                 {
 					if (not compare(at(x, y), newValue))
@@ -427,7 +436,7 @@ void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(C
 		double d = 0.;
 
 		// drawing the spans between AB and AC edges
-		for (double y = b.y(); y < c.y(); y++)
+		for (int y = b.y(); y < c.y(); y++)
         {
 			vec3i start =		b      + bc * d / bc.y();
 			vec3i end   =		a      + ac * t / ac.y();
@@ -460,6 +469,7 @@ void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(C
     }
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 Image* Image::operator -(const ImageRegion& other)
 {
 	assert(_width == other.getWidth());
@@ -482,17 +492,20 @@ Image* Image::operator -(const ImageRegion& other)
 	return img;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 ImageRegion	Image::select(unsigned x, unsigned y, unsigned width, unsigned height)
 {
 	assert(x < width and y < height and width <= _width and height <= _height);
 	return ImageRegion(this, x, y, width, height);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 ImageRegion::ImageRegion(const Image* parent, unsigned x, unsigned y, unsigned width, unsigned height) :
 	_parent(parent), _x(x), _y(y), _width(width), _height(height)
 {
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 Image* ImageRegion::operator +(const Image* other)
 {
 	Image* img = new Image(_width, _height);

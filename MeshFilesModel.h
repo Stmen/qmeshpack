@@ -33,6 +33,7 @@ public:
 
 signals:
 	void		geometryChanged();
+	void		numNodesChanged();
 	//void		nodeAdded();
 	//void		nodeRemoved(unsigned idx);
 public slots:

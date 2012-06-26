@@ -130,6 +130,7 @@ bool NodeModel::removeRows(int row, int count, const QModelIndex& parent)
 		beginRemoveRows(parent, row, row + count);
 		_nodes.erase(_nodes.begin() + row, _nodes.begin() + row + count);
 		endRemoveRows();
+		emit numNodesChanged();
 		return true;
 	}
 	else
@@ -142,6 +143,7 @@ void NodeModel::addNode(Node* node)
 	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
 	_nodes.push_back(node);
 	endInsertRows();
+	emit numNodesChanged();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -151,6 +153,7 @@ Node* NodeModel::addMesh(const char* filename, unsigned dilation)
 	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
 	_nodes.push_back(node);
 	endInsertRows();
+	emit numNodesChanged();
 	return node;
 }
 

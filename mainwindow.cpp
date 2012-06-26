@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QScrollBar>
 #include <QDebug>
+#include <QDesktopWidget>
 #include <QImage>
 #include <QtConcurrentRun>
 #include <QtConcurrentMap>
@@ -60,13 +61,16 @@ MainWindow::MainWindow() :
 	_conversionFactor = qvariant_cast<float>(settings.value("conversionFactor", 1.));
 	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));
 
+	QGLFormat fmt;
+	fmt.setAlpha(true);
+	fmt.setStereo(false);
+	fmt.setSampleBuffers(true);
+	QGLFormat::setDefaultFormat(fmt);
+
 	setCentralWidget(_stack);
 	QVector3D box_geom = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
 	_modelMeshFiles = new NodeModel(box_geom, this);
 
-	QVector3D userGeom = box_geom * (1 / _conversionFactor);
-	QString userBoxStr = QString("(%1 %2 %3)").arg(userGeom.x()).arg(userGeom.y()).arg(userGeom.z());
-	setWindowTitle(tr(APP_NAME) + tr("  box geometry: ") + userBoxStr + tr(" user units."));
 	createMeshList();
 
 	// creating Mesh Packer	
@@ -88,6 +92,10 @@ MainWindow::MainWindow() :
 	bool doScaleImages = qvariant_cast<bool>(settings.value("scaleImages"));
 	_viewModel->setScaleImages(doScaleImages);
 	_actDoScaleImages->setChecked(doScaleImages);
+
+	connect(_modelMeshFiles, SIGNAL(geometryChanged()), this, SLOT(updateWindowTitle()));
+	connect(_modelMeshFiles, SIGNAL(numNodesChanged()), this, SLOT(updateWindowTitle()));
+	updateWindowTitle();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -98,24 +106,29 @@ MainWindow::~MainWindow()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::saveScreenshot()
 {
+	_viewModel->getGLView()->flushGL();
+	QPixmap screenshot = QPixmap::grabWindow(QApplication::desktop()->winId()).copy(geometry());
+
 	QString filename = QFileDialog::getSaveFileName(this,
 		tr("Save main window screenshot"), "",
 		tr("PNG (*.png);; JPG (*.jpg);; All Files (*)"));
 
-	if (not filename.isEmpty())
-	{
-		QStringList l = filename.split(".");
-		QString ext = l.at(l.size() - 1).toLower();
+	if (filename.isEmpty())
+		return;
 
-		if (ext != "jpg" or ext != "png" or ext != "bmp")
-			filename += ".png";
+	// what if the users did not specify a suffix...?
+	QFileInfo fileInfo(filename);
+	if (fileInfo.suffix().isEmpty())
+		filename += ".png";
 
-		QImage img(size(), QImage::Format_RGB32);
-		QPainter painter(&img);
-		render(&painter);
-		img.save(filename);
-	}
-	assert(0 && "unused for now");
+	screenshot.save(filename);
+
+	/* This way doesn't work for QGLView
+	QImage img(size(), QImage::Format_RGB32);
+	QPainter painter(&img);
+	render(&painter);
+	img.save(filename);
+	// */
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +238,7 @@ void MainWindow::createMenusAndToolbars()
 	//-----------[ menus ]----------------
 	QMenu* menu = new QMenu(tr("&File"));
 	menu->insertAction(0, _actAddFile);
+	menu->insertAction(0, _actSaveResults);
 	menu->insertAction(0, _actProcess);
 	menu->addSeparator();
 	menu->insertAction(0, _actExit);
@@ -249,9 +263,9 @@ void MainWindow::createMenusAndToolbars()
 	//-----------[ toolbars ]----------------
 	_toolMain = addToolBar(tr("Main toolbar"));
 	_toolMain->insertAction(0, _actAddFile);
-	_toolMain->insertAction(0, _actProcess);
-	//_toolMain->insertAction(0, _actSaveScreenshot);
 	_toolMain->insertAction(0, _actSaveResults);
+	_toolMain->insertAction(0, _actProcess);
+	_toolMain->insertAction(0, _actSaveScreenshot);
 	_toolMain->insertAction(0, _actStop);
 	_toolMain->insertAction(0, _actShowResults);
 	_toolMain->addSeparator();
@@ -573,6 +587,7 @@ void MainWindow::startWorker(WorkerThread::Task task, QString arg)
 	_threadWorker->start();
 }
 
+#include <QDir>
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogSaveResults()
 {
@@ -582,31 +597,31 @@ void MainWindow::dialogSaveResults()
 		return;
 	}
 
-	QString suffix;
-	QString filename = QFileDialog::getSaveFileName(0, tr("Choose a file to save to"), "",
-			"TXT files (*.txt *.TXT);;"
-			"OFF Files(*.off *.OFF)",
-			&suffix);
-
+	QString selectedFilter;
+	QString filename = QFileDialog::getSaveFileName(this,
+													tr("Choose a file to save to"),
+													QDir::currentPath(),
+													"TXT files (*.txt *.TXT);;"
+													"STL Files(*.stl *.STL);;"
+													"OFF Files(*.off *.OFF)",
+													&selectedFilter);
 	if (filename.isEmpty())
 		return;
 
+	selectedFilter.resize(3);
+	selectedFilter = selectedFilter.toLower();
 
 	// what if the users did not specify a suffix...?
 	QFileInfo fileInfo(filename);
-	if (fileInfo.suffix().isEmpty())
-	{
-		suffix.resize(3);
-		filename += '.';
-		filename += suffix;
-	}
+	if (fileInfo.suffix().isEmpty())	
+		filename = filename + '.' + selectedFilter.toLower();
 
-	if (suffix.at(0) == 'O')
+	if (selectedFilter.at(0) == 'o' or selectedFilter.at(0) == 's') // .off or .stl
 	{		
 		consolePrint(tr("saving results to an OFF mesh \"%1\"").arg(filename));
 		startWorker(WorkerThread::SaveMeshList, filename);
 	}
-	else if (suffix.at(0) == 'T')
+	else if (selectedFilter.at(0) == 't') // text of line with format filename,x,y,z
 	{
 		QFile file(filename);
 		if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
@@ -683,6 +698,14 @@ void MainWindow::processNodesDone()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void MainWindow::updateWindowTitle()
+{
+	QVector3D userGeom = _modelMeshFiles->getGeometry() * (1 / _conversionFactor);
+	QString userBoxStr = QString("(%1 %2 %3)").arg(userGeom.x()).arg(userGeom.y()).arg(userGeom.z());
+	setWindowTitle(tr(APP_NAME) + tr("  box geometry: ") + userBoxStr + tr(" user units. Number of meshes: ") + QString::number(_modelMeshFiles->numNodes()));
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::consolePrint(QString str, unsigned level) const
 {
 	// html colors: http://www.w3schools.com/html/html_colornames.asp
@@ -702,12 +725,13 @@ void MainWindow::consolePrint(QString str, unsigned level) const
 
 	QString text = QDateTime::currentDateTime().toString("%1[hh:mm:ss] %2%3").arg(prefix).arg(str).arg(endHtml);
 	QTextCursor cursor = _console->textCursor();
-	//cursor.setPosition();
-	cursor.movePosition(QTextCursor::Start);
-
+	cursor.movePosition(QTextCursor::End);
+	_console->setTextCursor(cursor);
 	_console->insertHtml(text);
+	/*
 	QScrollBar* scrollBar = _console->verticalScrollBar();
-	scrollBar->setValue(scrollBar->maximum());
+	scrollBar->setValue(scrollBar->maximum());*/
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

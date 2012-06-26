@@ -35,7 +35,7 @@ public:
 	void		recalcMinMax(); /// reexamines all vertices and determines new minimum and maximum values.
 	void		draw(bool drawAABB = true) const;
 	void		buildNormals();
-	void		save(QString filename) const;
+	void		save(QString filename);
 
 
     /// this class is used to iterate over the Triangles of a Mesh.

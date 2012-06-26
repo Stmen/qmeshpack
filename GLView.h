@@ -33,7 +33,9 @@ public:
 	inline QSize minimumSizeHint() const { return QSize(100, 100); }
 	inline QSize sizeHint() const { return QSize(600, 400); }
 
-	void setNode(const Node* node);
+	void	setNode(const Node* node);
+	void	flushGL() const;
+	void	saveScreenshot();
 
 protected:
 

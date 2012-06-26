@@ -1,6 +1,7 @@
 #include "GLView.h"
 #include "config.h"
 #include <QDebug>
+#include <QFileDialog>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 GLView::GLView(QWidget* parent) :
@@ -35,7 +36,9 @@ GLView::GLView(const NodeModel* nodes, QWidget* parent) :
 	setAutoBufferSwap(false);
 	_mouseLast = QPoint(0., 0.);
 	_cam.setToIdentity();
-	_cam.translate(QVector3D(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2));
+	QVector3D pos(nodes->getGeometry().x() / 2, nodes->getGeometry().y() / 2, nodes->getGeometry().z() * 2);
+	_cam.translate(pos);
+	_lightPos = QVector4D(pos, 1.);
 	connect(nodes, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
@@ -55,6 +58,7 @@ void GLView::setNode(const Node* node)
 	QVector3D geom = node->getMesh()->getGeometry();
 	QVector3D pos = node->getPos() + QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 2);
     _cam.translate(pos);
+	_lightPos = QVector4D(pos, 1.);
 	updateGL();
 }
 
@@ -79,12 +83,12 @@ void GLView::initializeGL()
 	//glFrontFace(GL_CCW);
 	glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
+	glEnable(GL_CULL_FACE);
 
 	// Create light components
 	GLfloat ambientLight[] = { 0.2f, 0.2f, 0.2f, 1.0f };
 	GLfloat diffuseLight[] = { 0.9, 0.9, 0.9, 1.f };
 	GLfloat specularLight[] = { 0.5f, 0.5f, 0.5f, 1.0f };	
-	_lightPos = QVector4D(0., 0., _nodes->getGeometry().z(), 1);
 
 	// Assign created components to GL_LIGHT0
 	glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
@@ -111,6 +115,34 @@ void GLView::resizeGL(int width, int height)
 	glLoadIdentity();
 	glFrustum(-(float)width * 0.001, (float)width *  0.001, -(float)height *  0.001, (float)height *  0.001, 1., 10000);
 	glMatrixMode(GL_MODELVIEW);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void GLView::flushGL() const
+{
+	if (isValid())
+		glFlush();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void GLView::saveScreenshot()
+{
+	flushGL();
+	QImage framebuffer = grabFrameBuffer(false);
+
+	QString filename = QFileDialog::getSaveFileName(this,
+		tr("Save screenshot"), "",
+		tr("PNG (*.png);; JPG (*.jpg);; All Files (*)"));
+
+	if (filename.isEmpty())
+		return;
+
+	// what if the users did not specify a suffix...?
+	QFileInfo fileInfo(filename);
+	if (fileInfo.suffix().isEmpty())
+		filename += ".png";
+
+	framebuffer.save(filename);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,42 +276,59 @@ void GLView::mouseMoveEvent(QMouseEvent *event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::keyPressEvent(QKeyEvent* event)
 {
+	QMatrix4x4 mat;
+	mat.setToIdentity();
+	bool camOp = false;
+
 	switch(event->key())
 	{	
 		case Qt::Key_W:
-			_cam.translate(_cam.row(1).toVector3D() * _moveSensetivity);
+			camOp = true;
+			mat.translate(_cam.column(1).toVector3D() * _moveSensetivity * 4.);
 			updateGL();
 			break;
 
 		case Qt::Key_S:
-			_cam.translate(_cam.row(1).toVector3D() * -_moveSensetivity);
+			camOp = true;
+			mat.translate(_cam.column(1).toVector3D() * -_moveSensetivity* 4.);
 			updateGL();
 			break;
 
 		case Qt::Key_A:
-			_cam.translate(_cam.row(0).toVector3D() * -_moveSensetivity);
+			camOp = true;
+			mat.translate(_cam.column(0).toVector3D() * -_moveSensetivity* 4.);
 			updateGL();
 			break;
 
 		case Qt::Key_D:
-			_cam.translate(_cam.row(0).toVector3D() * _moveSensetivity);
+			camOp = true;
+			mat.translate(_cam.column(0).toVector3D() * _moveSensetivity* 4.);
 			updateGL();
 			break;
 
-		case Qt::Key_Space:			
-			_cam.translate(_cam.row(2).toVector3D() * -_moveSensetivity);
+		case Qt::Key_Space:
+			camOp = true;
+			mat.translate(_cam.column(2).toVector3D() * -_moveSensetivity * 4.);
 			updateGL();
 			break;
 
 		case Qt::Key_Shift:
-			_cam.translate(_cam.row(2).toVector3D() * -_moveSensetivity);
+			camOp = true;
+			mat.translate(_cam.column(2).toVector3D() * -_moveSensetivity * 4.);
 			updateGL();
+			break;
+
+		case Qt::Key_F2:
+			saveScreenshot();
 			break;
 
 		default:
 			event->ignore();
 			return;
 	}	
+
+	if (camOp)
+		_cam = mat * _cam;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

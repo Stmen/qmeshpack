@@ -186,24 +186,58 @@ void Mesh::add(const Mesh& other, const QVector3D offset)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Mesh::save(QString filename) const
+void Mesh::save(QString filename)
 {
 	QFile file(filename);
 	if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
 	{
-		throw Exception("%s: Unable to open file: %s", __FUNCTION__, file.errorString().toUtf8().constData());
+		throw Exception("%s: Unable to open file \'%s\' for writing.", __FUNCTION__, file.errorString().toUtf8().constData());
 		return;
+	}	
+
+	if (filename.endsWith(".off") or filename.endsWith(".OFF"))
+	{
+		QTextStream out(&file);
+		out << "OFF\n";
+		out << _vertices.size() << ' ' << (_triangleIndices.size() / 3) << " 0\n";
+
+		for (unsigned i = 0; i < _vertices.size(); i++)
+			out << _vertices[i].x() << ' ' <<  _vertices[i].y() << ' ' <<  _vertices[i].z() << '\n';
+
+		for (unsigned i = 0; i < _triangleIndices.size(); i += 3)
+			out << "3 " << _triangleIndices[i] << ' ' << _triangleIndices[i + 1] << ' ' <<  _triangleIndices[i + 2] << '\n';
+
 	}
+	else if (filename.endsWith(".stl") or filename.endsWith(".STL"))
+	{
+		if (not _normals)
+			buildNormals();
 
-	QTextStream out(&file);
-	out << "OFF\n";
-	out << _vertices.size() << ' ' << (_triangleIndices.size() / 3) << " 0\n";
+		QString name = _name.isEmpty() ? "NamelessSolid" : _name;
+		QTextStream out(&file);
+		out.setRealNumberNotation(QTextStream::ScientificNotation);
+		out << "solid " << name << '\n';
+		for (unsigned i = 0; i < _triangleIndices.size(); i += 3)
+		{
+			const unsigned* indices = &_triangleIndices[i];
+			QVector3D normal = (_normals[indices[0]] + _normals[indices[1]] + _normals[indices[2]]).normalized();
+			out << "facet normal " << normal.x() << ' ' << normal.y() << ' ' << normal.z() << '\n';
+			out << "outer loop\n";
 
-	for (unsigned i = 0; i < _vertices.size(); i++)
-		out << _vertices[i].x() << ' ' <<  _vertices[i].y() << ' ' <<  _vertices[i].z() << '\n';
+			for (unsigned j = 0; j < 3; j++)
+			{
+				QVector3D vertex = _vertices[indices[j]];
+				out << "vertex " << vertex.x() << ' ' << vertex.y() << ' ' << vertex.z() << '\n';
 
-	for (unsigned i = 0; i < _triangleIndices.size(); i += 3)
-		out << "3 " << _triangleIndices[i] << ' ' << _triangleIndices[i + 1] << ' ' <<  _triangleIndices[i + 2] << '\n';
+			}
+
+			out << "endloop\n"
+				   "endfacet\n";
+		}
+		out << "endsolid " << name << '\n';
+	}
+	else
+		throw Exception("%s: unknown mesh extension in \'%s.\'", __FUNCTION__, filename.toUtf8().constData());
 
 	file.close();
 }

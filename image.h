@@ -29,7 +29,7 @@ public:
 	QImage		toQImage() const;
 	void		clear(ColorType value = 0.);
 	ColorType	at(unsigned x, unsigned y) const { return _data[y * _width + x]; }
-	void		setPixel(unsigned x, unsigned y, ColorType pixel);
+	void		setPixel(unsigned x, unsigned y, ColorType pixel);	
 	bool		pixelIsInside(int x, int y);
 	void		addBorder(unsigned borderSize, ColorType defaultValue);
 	ColorType	maxColor() const { return _maxColor; }
@@ -46,6 +46,8 @@ public:
 	Image*		operator-(const ImageRegion& imgregion);
 
 private:
+
+	void		updateMinMax(ColorType color);
 
 	unsigned    _width;
 	unsigned    _height;
