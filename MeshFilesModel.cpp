@@ -2,14 +2,8 @@
 #include "util.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-NodeModel::NodeModel(QObject* parent) :
-	QAbstractItemModel(parent)
-{
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-NodeModel::NodeModel(QVector3D geometry, QObject *parent) :
-	QAbstractItemModel(parent), _geometry(geometry)
+NodeModel::NodeModel(QObject *parent, QVector3D geometry, unsigned defaultDilationValue) :
+	QAbstractItemModel(parent), _geometry(geometry), _defaultDilationValue(defaultDilationValue)
 {
 }
 
@@ -147,9 +141,9 @@ void NodeModel::addNode(Node* node)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Node* NodeModel::addMesh(const char* filename, unsigned dilation)
+Node* NodeModel::addMesh(const char* filename)
 {
-	Node* node = new Node(filename, dilation);
+	Node* node = new Node(filename, _defaultDilationValue);
 	beginInsertRows(QModelIndex(), _nodes.size(), _nodes.size() + 1);
 	_nodes.push_back(node);
 	endInsertRows();

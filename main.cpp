@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-#include <QVector3D>
+#include <QApplication>
 
 int main(int argc, char** argv)
 {    

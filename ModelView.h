@@ -1,8 +1,6 @@
 #pragma once
-
 #include <QSplitter>
 #include <QLabel>
-#include "Node.h"
 #include "GLView.h"
 
 class ModelView : public QSplitter

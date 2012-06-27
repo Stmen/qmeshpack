@@ -1,7 +1,6 @@
-#ifndef MESHPACKER_H
-#define MESHPACKER_H
+#pragma once
 #include <QThread>
-#include "image.h"
+#include <QVariant>
 #include "MeshFilesModel.h"
 
 class WorkerThread : public QThread
@@ -13,25 +12,28 @@ public:
 	enum Task
 	{
 		ComputePositions,
-		SaveMeshList
+		SaveMeshList,
+		LoadMeshList
 	} _task;
 
-	explicit WorkerThread(NodeModel& nodes, QObject *parent = 0);
-	void	setNodeList(NodeModel& nodes);
-	size_t	maxProgress() const;
+	explicit WorkerThread(QObject *parent, NodeModel &nodes);
+	void	setNodeList(NodeModel& nodes);		
 	void	setTask(Task task) { _task = task; }
-	void	setArgument(QString arg) { _arg = arg; }
+	void	setArgument(QVariant arg) { _args = arg; }
 	quint64	getLastProcessingMSecs() const { return _lastProcessingMSecs; }
+
 protected:
 	void run();
 
 signals:
 
+	void reportProgressMax(int);
 	void reportProgress(int progress);
 	void processingDone();
 	void report(QString what, unsigned level);	
 
 public slots:
+
 	void shouldStop()
 	{
 		_shouldStop = true;
@@ -40,13 +42,12 @@ public slots:
 
 private:
 
-	void computePositions();
-	void saveNodeList();
+	void	computePositions();
+	void	saveNodeList();
+	void	loadNodeList();
 
 	NodeModel&			_nodes;
-	bool				_shouldStop;
-	QString				_arg;
+	bool				_shouldStop;	
+	QVariant			_args;
 	quint64				_lastProcessingMSecs;
 };
-
-#endif // MESHPACKER_H

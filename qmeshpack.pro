@@ -12,7 +12,6 @@ SOURCES += main.cpp \
     Exception.cpp \
     util.cpp \
     image.cpp \
-    meshlistview.cpp \
     vectorinputdialog.cpp \
     MeshFilesModel.cpp \
     MeshPacker.cpp \
@@ -24,7 +23,6 @@ HEADERS += mainwindow.h \
     Exception.h \
     util.h \
     image.h \
-    meshlistview.h \
     vectorinputdialog.h \
     MeshFilesModel.h \
     MeshPacker.h \

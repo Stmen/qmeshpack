@@ -10,8 +10,7 @@ class NodeModel : public QAbstractItemModel
 
 public:
 
-	explicit NodeModel(QObject *parent = 0);
-	explicit NodeModel(QVector3D geometry, QObject *parent = 0);
+	explicit NodeModel(QObject *parent, QVector3D geometry, unsigned defaultDilationValue);
 	virtual ~NodeModel();
 
 	Qt::ItemFlags flags(const QModelIndex & index) const;
@@ -30,6 +29,8 @@ public:
 	size_t		numNodes() const { return _nodes.size(); }
 	void		clear() { _nodes.clear(); }
 	void		sortByBBoxSize();
+	unsigned	getDefaultDilationValue() const { return _defaultDilationValue; }
+	void		setDefaultDilationValue(unsigned defaultDilationValue) { _defaultDilationValue = defaultDilationValue; }
 
 signals:
 	void		geometryChanged();
@@ -38,7 +39,7 @@ signals:
 	//void		nodeRemoved(unsigned idx);
 public slots:
 
-	Node* addMesh(const char *filename, unsigned dilation);
+	Node* addMesh(const char *filename);
 	void addNode(Node* node);
 	void nodePositionChanged(unsigned i);
 
@@ -46,4 +47,5 @@ private:
 
 	QVector3D			_geometry;
 	std::vector<Node*>	_nodes;
+	unsigned			_defaultDilationValue;
 };

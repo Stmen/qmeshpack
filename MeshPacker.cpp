@@ -1,42 +1,30 @@
 #include "MeshPacker.h"
-#include <cassert>
-#include <omp.h>
 #include <QAtomicInt>
 #include <QDateTime>
+#include <QtConcurrentMap>
+#include <cassert>
+#include <functional>
+#include <QStringList>
+#include <stdexcept>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-WorkerThread::WorkerThread(NodeModel &nodes, QObject *parent) :
+WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 	QThread(parent), _task(ComputePositions), _nodes(nodes)
 {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-///
-/// Returns maximum number, that the reportProgress() signal will report.
-///
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-size_t WorkerThread::maxProgress() const
-{
-	size_t progress = 0;
-	if (_task == ComputePositions)
-	{
-		for (unsigned i = 0; i < _nodes.numNodes(); i++)
-		{
-			Node* node = _nodes.getNode(i);
-			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
-			progress += max.x() * max.y();
-		}
-	}
-	else
-	{
-		return _nodes.numNodes();
-	}
-	return progress;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::saveNodeList()
 {
+	QString filename = _args.toString();
+	if (filename.isEmpty())
+	{
+		report(tr("no save file given"), 2);
+		return;
+	}
+
+	emit reportProgressMax(_nodes.numNodes());
+
 	const Node* node = _nodes.getNode(0);
 	//emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
 	Mesh aggregate(*node->getMesh());
@@ -48,7 +36,43 @@ void WorkerThread::saveNodeList()
 		//emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
 		aggregate.add(*node->getMesh(), node->getPos());
 	}
-	aggregate.save(_arg);
+	aggregate.save(filename);
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void WorkerThread::loadNodeList()
+{
+	QStringList filenames = _args.toStringList();
+	if (filenames.isEmpty())
+	{
+		report(tr("no files given"), 2);
+		return;
+	}
+
+	emit reportProgressMax(filenames.size());
+	QAtomicInt progress_atom(0);
+
+	// mapper
+	std::function<Node* (const QString& str)> nodeCreate =
+		[this, &progress_atom](const QString& str)
+		{
+			QStringList slist =  str.split(';');
+			Node* node = new Node(slist[0].toUtf8().constData(), _nodes.getDefaultDilationValue());
+			if (slist.size() == 4)
+				node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
+
+			emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+			return node;
+
+		};
+
+	// reducer
+	std::function<void (int, Node*)> nodeAdd =
+			[this](int a, Node* node) { (void)a; _nodes.addNode(node); };
+
+
+	QtConcurrent::blockingMappedReduced<int>(filenames, nodeCreate, nodeAdd, QtConcurrent::UnorderedReduce);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -56,18 +80,57 @@ void WorkerThread::run()
 {
 	quint64 time = QDateTime::currentDateTime().toMSecsSinceEpoch();
 	_shouldStop = false;
-	if (_task == ComputePositions)
-		computePositions();
-	else if (_task == SaveMeshList)
-		saveNodeList();
-	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
+	try
+	{
+		switch (_task)
+		{
+			case ComputePositions:
+				computePositions();
+				break;
 
+			case SaveMeshList:
+				if (_args.isValid())
+					saveNodeList();
+				break;
+
+			case LoadMeshList:
+				if (_args.isValid())
+					loadNodeList();
+				break;
+
+			default:
+				assert(0 && "bad task was selected, this should never happen");
+				break;
+		}
+	}
+	catch(const std::exception& ex)
+	{
+		report(tr("exception in worker thred: ") + QString(ex.what()), 2);
+	}
+	catch(...)
+	{
+		report(tr("unknown exception in worker thred!"), 0);
+	}
+
+	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
 	emit processingDone();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::computePositions()
 {	
+	{
+		size_t max_progress = 0;
+		for (unsigned i = 0; i < _nodes.numNodes(); i++)
+		{
+			Node* node = _nodes.getNode(i);
+			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
+			max_progress += max.x() * max.y();
+		}
+
+		emit reportProgressMax(max_progress);
+	}
+
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y(), /* clear color = */ 0.);
     QAtomicInt progress_atom(0);
 	for (size_t i = 0; i < _nodes.numNodes(); i++)

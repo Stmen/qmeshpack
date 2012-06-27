@@ -1,5 +1,7 @@
 #include "mainwindow.h"
-#include <QProgressBar>
+#include <QMessageBox>
+#include <QCoreApplication>
+#include <QApplication>
 #include <QPainter>
 #include <QSettings>
 #include <QVBoxLayout>
@@ -16,9 +18,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <cassert>
-#include "image.h"
-#include "GLView.h"
 #include "Exception.h"
+#include "vectorinputdialog.h"
 #include "config.h"
 
 /// theese are different views in _stack. I used the QStack to avoid unnatural geometry changes while switching different views
@@ -59,7 +60,7 @@ MainWindow::MainWindow() :
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
 	_conversionFactor = qvariant_cast<float>(settings.value("conversionFactor", 1.));
-	_defaultDilationValue = qvariant_cast<unsigned>(settings.value("dilation", 00));
+	unsigned dilation = qvariant_cast<unsigned>(settings.value("dilation", 00));
 
 	QGLFormat fmt;
 	fmt.setAlpha(true);
@@ -69,14 +70,14 @@ MainWindow::MainWindow() :
 
 	setCentralWidget(_stack);
 	QVector3D box_geom = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
-	_modelMeshFiles = new NodeModel(box_geom, this);
+	_modelMeshFiles = new NodeModel(this, box_geom, dilation);
 
 	createMeshList();
 
 	// creating Mesh Packer	
-	_threadWorker = new WorkerThread(*_modelMeshFiles, this);
-	connect(_threadWorker, SIGNAL(processingDone()), this, SLOT(processNodesDone()));
-	connect(_threadWorker, SIGNAL(report(QString, unsigned)), this, SLOT(consolePrint(QString, unsigned)));
+	_threadWorker = new WorkerThread(this, *_modelMeshFiles);
+	connect(_threadWorker, SIGNAL(processingDone()), this, SLOT(processNodesDone()), Qt::QueuedConnection);
+	connect(_threadWorker, SIGNAL(report(QString, unsigned)), this, SLOT(consolePrint(QString, unsigned)), Qt::QueuedConnection);
 
 	// create console
 	QDockWidget* dockWidget = new QDockWidget(tr("Console"), this);
@@ -96,6 +97,8 @@ MainWindow::MainWindow() :
 	connect(_modelMeshFiles, SIGNAL(geometryChanged()), this, SLOT(updateWindowTitle()));
 	connect(_modelMeshFiles, SIGNAL(numNodesChanged()), this, SLOT(updateWindowTitle()));
 	updateWindowTitle();
+
+	connect(_threadWorker, SIGNAL(reportProgressMax(int)), _progressWidget, SLOT(setMaximum(int)), Qt::QueuedConnection);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +142,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	settings.setValue("windowState", saveState());
 	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
 	settings.setValue("conversionFactor", _conversionFactor);
-	settings.setValue("dilation", _defaultDilationValue);
+	settings.setValue("dilation", _modelMeshFiles->getDefaultDilationValue());
 	settings.setValue("scaleImages", _viewModel->areImagesScaled());
 	QMainWindow::closeEvent(event);
 }
@@ -456,11 +459,11 @@ void MainWindow::dialogSetDefaultDilation()
 {
 	QString msg = tr("Setting default dilation value ");
 	bool ok;
-	double value = QInputDialog::getInteger(this, msg, tr("dilation value"), _defaultDilationValue,
+	double value = QInputDialog::getInteger(this, msg, tr("dilation value"), _modelMeshFiles->getDefaultDilationValue(),
 												 0, 80, 1, &ok);
 	if (ok)
 	{
-		_defaultDilationValue = value;
+		_modelMeshFiles->setDefaultDilationValue(value);
 		consolePrint(msg + QString::number(value));
 	}
 }
@@ -480,7 +483,7 @@ struct MeshInfo
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-static void txtToList(QString filename, QList<MeshInfo>& mesh_infos)
+static void unrollListFiles(QString filename, QStringList& out)
 {
 	QFile file(filename);
 	if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -488,18 +491,14 @@ static void txtToList(QString filename, QList<MeshInfo>& mesh_infos)
 
 
 	while (not file.atEnd() and file.isReadable())
-	{
-		QList<QByteArray> list = file.readLine().split(';');
-		if (list.empty()) // ignore unparsable
+	{		
+		QString str = QString(file.readLine()).trimmed();
+		if (str.isEmpty()) // ignore unparsable
 			continue;
-
-		QString  off_filename = list.at(0).trimmed();
-		if (off_filename.isEmpty())
-			continue;
-
-		MeshInfo m = { off_filename, QVector3D(list.at(1).toDouble(), list.at(2).toDouble(), list.at(3).toDouble()) };
-		mesh_infos.push_back(m);
+		else
+			out.append(str);
 	}
+	file.close();
 }
 
 
@@ -508,10 +507,11 @@ static void txtToList(QString filename, QList<MeshInfo>& mesh_infos)
 void MainWindow::dialogAddMesh()
 {
 	QFileDialog dialog(this,
-		  /* caption = */ tr("Save resuslts as"),
+		  /* caption = */ tr("Save results as"),
 		  /* directory = */ "",
 		  "OFF meshes (*.off *.OFF);;"
-		  "TXT mesh list(*.txt *.TXT)");
+		  "TXT mesh list(*.txt *.TXT);;"
+		  "All supported files (*.off *.txt)");
 
 	dialog.setFileMode(QFileDialog::ExistingFiles);
 	if (not dialog.exec())
@@ -521,55 +521,21 @@ void MainWindow::dialogAddMesh()
 	if (filenames.isEmpty())
 		return;
 
-	std::function<void (int, Node*)> nodeAdd =
-			[this](int a, Node* node) { (void)a; _modelMeshFiles->addNode(node); };
-
-	try
+	QStringList out;
+	for(long i = 0; i < filenames.size(); ++i)
 	{
-		if (dialog.selectedNameFilter().at(0) == 'O')
-		{
-			std::function<Node* (const QString& str)> nodeCreate =
-					[this](const QString& str)
-					{
-						return new Node(str.toUtf8().constData(), _defaultDilationValue);
-					};
-
-			QtConcurrent::blockingMappedReduced<int>(filenames, nodeCreate, nodeAdd, QtConcurrent::UnorderedReduce);
-		}
-		else if (dialog.selectedNameFilter().at(0) == 'T')
-		{
-			QList<MeshInfo> mesh_infos;
-
-			for (int i = 0; i < filenames.size(); i++)
-				txtToList(filenames.at(i), mesh_infos);
-
-			std::function<Node* (const MeshInfo& info)> nodeCreate =
-					[this](const MeshInfo& info)
-					{
-						Node* node = new Node(info.filename.toUtf8().constData(), _defaultDilationValue);
-						node->setPos(info.pos);
-						return node;
-					};
-
-			QtConcurrent::blockingMappedReduced<int>(mesh_infos, nodeCreate, nodeAdd, QtConcurrent::UnorderedReduce);
-		}
+		if (filenames[i].endsWith(".txt") or filenames[i].endsWith(".TXT"))
+			unrollListFiles(filenames[i], out);
+		else
+			out.append(filenames[i]);
 	}
-	catch (const std::exception& ex)
-	{
-		QString msg  = QString("failed to open files: ") + QString(ex.what());
-		consolePrint(msg, 2);
-		QMessageBox::critical(this, tr("Open failed"), msg);
-	}
-	catch (...)
-	{
-		QString msg  = QString("failed to open files");
-		consolePrint(QString(msg), 2);
-		QMessageBox::critical(this, tr("Open failed"), msg);
-	}
+
+	consolePrint(tr("loading a list of meshes."));
+	startWorker(WorkerThread::LoadMeshList, QVariant(out));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void MainWindow::startWorker(WorkerThread::Task task, QString arg)
+void MainWindow::startWorker(WorkerThread::Task task, QVariant arg)
 {
 	_actAddFile->setEnabled(false);
 	_actMeshRemove->setEnabled(false);
@@ -579,10 +545,8 @@ void MainWindow::startWorker(WorkerThread::Task task, QString arg)
 	_actSaveResults->setEnabled(false);
 	_actSetBoxGeometry->setEnabled(false);
 	_actStop->setEnabled(true);
-	if (not arg.isEmpty())
-		_threadWorker->setArgument(arg);
+	_threadWorker->setArgument(arg);
 	_threadWorker->setTask(task);
-	_progressWidget->setRange(0, _threadWorker->maxProgress());
 	_progressWidget->setEnabled(true);
 	_threadWorker->start();
 }
