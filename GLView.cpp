@@ -154,7 +154,9 @@ void GLView::paintGL()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadMatrixd(_cam.inverted().constData());
 
-#ifdef USE_LIGHTING    
+	glEnableClientState(GL_VERTEX_ARRAY);
+#ifdef USE_LIGHTING
+	glEnableClientState(GL_NORMAL_ARRAY);
 	glEnable(GL_LIGHTING);
 	float ligtPos[4] = { (float)_cam.column(3).x(), (float)_cam.column(3).y(), (float)_cam.column(3).z(), 1 };
 	glLightfv(GL_LIGHT0, GL_POSITION, ligtPos);
@@ -192,15 +194,15 @@ void GLView::paintGL()
 #ifdef USE_LIGHTING
 			glDisable(GL_LIGHTING);
 #endif
-			glColor3f(1., 1., 0.);
-			glEnableClientState(GL_VERTEX_ARRAY);
-			drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes->getGeometry());
-			glDisableClientState(GL_VERTEX_ARRAY);
+			glColor3f(1., 1., 0.);			
+			drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes->getGeometry());			
 		}
 	}
 
-
-	//*/
+	glDisableClientState(GL_VERTEX_ARRAY);
+#ifdef USE_LIGHTING
+	glDisableClientState(GL_NORMAL_ARRAY);
+#endif
 
 /* test triangle
 	glBegin(GL_TRIANGLES);

@@ -45,6 +45,7 @@ private:
 	void	computePositions();
 	void	saveNodeList();
 	void	loadNodeList();
+	bool	nodeFits(const Node* node) const;
 
 	NodeModel&			_nodes;
 	bool				_shouldStop;	

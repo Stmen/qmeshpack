@@ -1,6 +1,5 @@
 <RCC>
     <qresource prefix="/images">
-        <file>images/reddice.png</file>
         <file>images/camera.png</file>
     </qresource>
 </RCC>

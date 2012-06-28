@@ -433,26 +433,23 @@ void drawAxisAlignedBox(QVector3D min, QVector3D max)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::draw(bool drawAABB) const
 {	
-	glEnableClientState(GL_VERTEX_ARRAY);
+	//glEnableClientState(GL_VERTEX_ARRAY);
 	if (drawAABB)
 		drawAxisAlignedBox(_min, _max);
 
 #ifdef USE_LIGHTING
-	glEnableClientState(GL_NORMAL_ARRAY);
+	//glEnableClientState(GL_NORMAL_ARRAY);
 	glNormalPointer(GL_FLOAT, sizeof(QVector3D), (void*)_normals);
 #endif
 
 	//glVertexPointer(/* num components */ 3, GL_FLOAT, sizeof(QVector3D), &_vertices[0]);
 	glVertexPointer(3, GL_FLOAT, sizeof(QVector3D), &_vertices[0]);
-
-
-
 	glDrawElements(GL_TRIANGLES, _triangleIndices.size(), GL_UNSIGNED_INT, &_triangleIndices[0]);
 
 #ifdef USE_LIGHTING
-	glDisableClientState(GL_NORMAL_ARRAY);
+	//glDisableClientState(GL_NORMAL_ARRAY);
 #endif
 
-	glDisableClientState(GL_VERTEX_ARRAY);
+	//glDisableClientState(GL_VERTEX_ARRAY);
 
 }

@@ -26,8 +26,7 @@ public:
 	Node*		getNode(unsigned i) const { return _nodes[i]; }
 	void		setGeometry(QVector3D geometry);
 	QVector3D	getGeometry() const { return _geometry; }
-	size_t		numNodes() const { return _nodes.size(); }
-	void		clear() { _nodes.clear(); }
+	size_t		numNodes() const { return _nodes.size(); }	
 	void		sortByBBoxSize();
 	unsigned	getDefaultDilationValue() const { return _defaultDilationValue; }
 	void		setDefaultDilationValue(unsigned defaultDilationValue) { _defaultDilationValue = defaultDilationValue; }
@@ -39,9 +38,10 @@ signals:
 	//void		nodeRemoved(unsigned idx);
 public slots:
 
-	Node* addMesh(const char *filename);
-	void addNode(Node* node);
-	void nodePositionChanged(unsigned i);
+	Node*		addMesh(const char *filename);
+	void		addNode(Node* node);
+	void		nodePositionChanged(unsigned i);
+	void		clear();
 
 private:
 

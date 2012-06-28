@@ -6,7 +6,7 @@
 #include <functional>
 #include <QStringList>
 #include <stdexcept>
-
+#include "config.h"
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 	QThread(parent), _task(ComputePositions), _nodes(nodes)
@@ -39,7 +39,6 @@ void WorkerThread::saveNodeList()
 	aggregate.save(filename);
 }
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::loadNodeList()
 {
@@ -54,6 +53,18 @@ void WorkerThread::loadNodeList()
 	QAtomicInt progress_atom(0);
 
 	// mapper
+#ifdef SINGLE_THREADED_LOADING
+	for (long i = 0; i < filenames.size(); i++)
+	{
+		QStringList slist =  filenames[i].split(';');
+		Node* node = new Node(slist[0].toUtf8().constData(), _nodes.getDefaultDilationValue());
+		if (slist.size() == 4)
+			node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
+
+		emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+		_nodes.addNode(node);
+	}
+#else
 	std::function<Node* (const QString& str)> nodeCreate =
 		[this, &progress_atom](const QString& str)
 		{
@@ -73,6 +84,7 @@ void WorkerThread::loadNodeList()
 
 
 	QtConcurrent::blockingMappedReduced<int>(filenames, nodeCreate, nodeAdd, QtConcurrent::UnorderedReduce);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -117,6 +129,16 @@ void WorkerThread::run()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+bool WorkerThread::nodeFits(const Node* node) const
+{
+	QVector3D geometry = _nodes.getGeometry();
+	return	(node->getTop()->getWidth() <= geometry.x()) and
+			(node->getTop()->getHeight() <= geometry.y()) and
+			((node->getTop()->maxColor() - node->getBottom()->minColor()) <= geometry.z());
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::computePositions()
 {	
 	{
@@ -131,7 +153,9 @@ void WorkerThread::computePositions()
 		emit reportProgressMax(max_progress);
 	}
 
-	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y(), /* clear color = */ 0.);
+	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
+	base.setAllPixelsTo(0.);
+
     QAtomicInt progress_atom(0);
 	for (size_t i = 0; i < _nodes.numNodes(); i++)
 	{
@@ -141,6 +165,12 @@ void WorkerThread::computePositions()
         Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
 		unsigned best_y = 0;
+
+		if (not nodeFits(node))
+		{
+			emit report(QString("mesh \"%1\" does not fit at all.").arg(node->getMesh()->getName()), 2);
+			break;
+		}
 
 		unsigned max_y = _nodes.getGeometry().y() - node->getTop()->getHeight();
 		unsigned max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();

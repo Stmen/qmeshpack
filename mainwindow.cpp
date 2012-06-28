@@ -47,7 +47,7 @@ void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
 		QVector3D a = offset + QVector3D(0., 0., rand() & 0xFF);
 		QVector3D b = QVector3D(x2 * r1,			y2 * r1, rand() & 0xFF) + offset;
 		QVector3D c = QVector3D((x1 + x2) / 2 * r2, (y1 + y2) / 2 * r2, rand() & 0xFF) + offset;
-		img->triangle(a, b, c, Image::maxValue);
+		img->drawTriangle(a, b, c, Image::x_greater_y);
 	}
 }
 
@@ -191,6 +191,11 @@ void MainWindow::createActions()
 	_actProcess->setStatusTip(tr("Starts combining the Meshes."));
 	connect(_actProcess, SIGNAL(triggered()), this, SLOT(processNodes()));
 
+	_actClear = new QAction(QIcon(":/trolltech/styles/commonstyle/images/standardbutton-clear-32.png"), tr("&Clear"), this);
+	_actClear->setStatusTip(tr("Removes all meshes."));
+	connect(_actClear, SIGNAL(triggered()), _modelMeshFiles, SLOT(clear()));
+	connect(_actClear,  SIGNAL(triggered()), _boxView, SLOT(updateGL()));
+
 	_actSetBoxGeometry = new QAction(QIcon(), tr("Set &geometry"), this);
 	_actSetBoxGeometry->setStatusTip(tr("Sets the bounding box geometry for the target space."));
 	connect(_actSetBoxGeometry, SIGNAL(triggered()), this, SLOT(dialogSetBoxGeometry()));
@@ -268,6 +273,7 @@ void MainWindow::createMenusAndToolbars()
 	_toolMain->insertAction(0, _actAddFile);
 	_toolMain->insertAction(0, _actSaveResults);
 	_toolMain->insertAction(0, _actProcess);
+	_toolMain->insertAction(0, _actClear);
 	_toolMain->insertAction(0, _actSaveScreenshot);
 	_toolMain->insertAction(0, _actStop);
 	_toolMain->insertAction(0, _actShowResults);
@@ -292,7 +298,7 @@ void MainWindow::createStack()
 	//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
 	//imageLabel->setScaledContents(false);
 	label->setScaledContents(true);
-	Image img(700, 700, 0);
+	Image img(700, 700);
 	//testTriangle1(&img);
 	//img.dilate(10, Image::maxValue);
 	drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0, 150, 300);
@@ -311,9 +317,11 @@ void MainWindow::createStack()
 	label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 	_stack->addWidget(label);
 
-	GLView* boxView = new GLView(_modelMeshFiles);
-	connect(_threadWorker, SIGNAL(processingDone()), boxView, SLOT(updateGL()));
-	_stack->addWidget(boxView);
+	_boxView = new GLView(_modelMeshFiles);
+	connect(_threadWorker, SIGNAL(processingDone()), _boxView, SLOT(updateGL()));
+	connect(_modelMeshFiles, SIGNAL(dataChanged(QModelIndex,QModelIndex)), _boxView, SLOT(updateGL()));
+
+	_stack->addWidget(_boxView);
 	_viewModel = new ModelView(this);
 	_stack->addWidget(_viewModel);
 
@@ -336,7 +344,6 @@ void MainWindow::mainNodeSelected(const QModelIndex & index)
 	{
 		_stack->setCurrentIndex(VIEW_RESULTS);
 	}
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -468,20 +475,6 @@ void MainWindow::dialogSetDefaultDilation()
 	}
 }
 
-
-struct NodeInfo
-{
-    QString filename;
-    QVector3D position;
-	unsigned dilation;
-};
-
-struct MeshInfo
-{
-	QString filename;
-	QVector3D pos;
-};
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 static void unrollListFiles(QString filename, QStringList& out)
 {
@@ -500,8 +493,6 @@ static void unrollListFiles(QString filename, QStringList& out)
 	}
 	file.close();
 }
-
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::dialogAddMesh()
@@ -544,7 +535,8 @@ void MainWindow::startWorker(WorkerThread::Task task, QVariant arg)
 	_actProcess->setEnabled(false);
 	_actSaveResults->setEnabled(false);
 	_actSetBoxGeometry->setEnabled(false);
-	_actStop->setEnabled(true);
+	_actClear->setEnabled(false);
+	_actStop->setEnabled(true);	
 	_threadWorker->setArgument(arg);
 	_threadWorker->setTask(task);
 	_progressWidget->setEnabled(true);
@@ -656,6 +648,7 @@ void MainWindow::processNodesDone()
 	_actProcess->setEnabled(true);
 	_actSaveResults->setEnabled(true);
 	_actSetBoxGeometry->setEnabled(true);
+	_actClear->setEnabled(true);
 	_actStop->setEnabled(false);
 
 	consolePrint(tr("processing done in %1 milliseconds.").arg(QString::number(_threadWorker->getLastProcessingMSecs())));
@@ -701,9 +694,13 @@ void MainWindow::consolePrint(QString str, unsigned level) const
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::aboutThisApp()
 {
+	QString ver = qApp->applicationVersion();
+	if (ver.at(ver.size() - 2) == 'B')
+		ver = ver + "-beta" + ver.at(ver.size() - 1);
+
 	QString msg = tr("This is \"") + QString(APP_NAME) +
 				  QString("\"\nby Konstantin Schlese (nulleight@gmail.com).\n") +
-				  QString("Application version: %1\n").arg(qApp->applicationVersion()) +
+				  QString("Application version: %1\n").arg(ver) +
 				  QString(__DATE__) + QString(" Hamburg");
 	QMessageBox::information(this, tr(APP_NAME), msg);
 }

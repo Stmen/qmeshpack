@@ -54,6 +54,7 @@ public slots:
 private:
 
 	NodeModel*		_modelMeshFiles;
+	GLView*			_boxView;
 	QTreeView*      _viewMeshFiles;
 	ModelView*		_viewModel;
 	QProgressBar*	_progressWidget;
@@ -67,6 +68,7 @@ private:
 	QAction*		_actExit;
 	QAction*		_actAddFile;
 	QAction*        _actProcess;
+	QAction*        _actClear;
 	QAction*		_actSetBoxGeometry;
 	QAction*		_actShowResults;
 	QAction*		_actSaveScreenshot;

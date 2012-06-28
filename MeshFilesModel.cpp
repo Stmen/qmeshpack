@@ -10,12 +10,7 @@ NodeModel::NodeModel(QObject *parent, QVector3D geometry, unsigned defaultDilati
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 NodeModel::~NodeModel()
 {
-	/*
-	for (unsigned i = 0; i < _nodes.size(); i++)
-	{
-		delete _nodes[i];
-	}
-	*/
+	clear();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -149,6 +144,21 @@ Node* NodeModel::addMesh(const char* filename)
 	endInsertRows();
 	emit numNodesChanged();
 	return node;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void NodeModel::clear()
+{
+	size_t numNodes = _nodes.size();
+	beginRemoveRows(QModelIndex(), 0, numNodes - 1);
+	for (unsigned i = 0; i < numNodes; i++)
+	{
+		Node* node = _nodes.back();
+		_nodes.pop_back();
+		delete node;
+	}
+	endRemoveRows();
+	emit numNodesChanged();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

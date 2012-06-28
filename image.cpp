@@ -14,63 +14,54 @@ Image::Image(unsigned width, unsigned height) :
 	_height(height),
 	_minColor(INFINITY),
 	_maxColor(-INFINITY)
-{
-	if (width == 0 or _height == 0)
-		throw Exception("bad geometry");
-
-	_data = new ColorType[width * height];
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-Image::Image(unsigned width, unsigned height, ColorType clearColor) :
-	_width(width),
-	_height(height)
-{
-	if (width == 0 or _height == 0)
+{	
+	if (width == 0 or height == 0)
         throw Exception("bad geometry");
 
+	_alpha.resize(width * height, false);
     _data = new ColorType[width * height];
-    clear(clearColor);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue)
+Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue) :
+	_minColor(INFINITY),
+	_maxColor(-INFINITY)
 {
-	QVector3D geometry = mesh.getMax() - mesh.getMin();
+	QVector3D geometry = mesh.getGeometry();
+
 	if (geometry.x() < 1. or geometry.y() < 1. or geometry.z() < 1.)
 		throw Exception("%s: mesh \"%s\" has bad geometry", __FUNCTION__, mesh.getName().toUtf8().constData());
 
 	_width = geometry.x();
 	_height = geometry.y();
+	_alpha.resize(_width * _height, false);
     _data = new ColorType[_width * _height];
+	_name = mesh.getName();
 
     switch (mode)
     {
 		case Top:
-			_name = mesh.getName() + "_top";
-			clear(0.);
+			_name += "_top";
 			for (Mesh::Iterator it = mesh.vertexIterator(); it.is_good(); it.next())
 			{
 				Triangle tri = it.get();
-				triangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
-						 Image::maxValue);
-			}			
-			assert(fabs(_maxColor - geometry.z()) < 1.);
-			dilate(dilationValue, Image::maxValue);			
+				drawTriangle(tri.vertex[0] - mesh.getMin(),
+							 tri.vertex[1] - mesh.getMin(),
+							 tri.vertex[2] - mesh.getMin(),
+							 Image::x_greater_y);
+			}						
+			dilate(dilationValue, Image::x_greater_y);
 			break;
 
 		case Bottom:
-			_name = mesh.getName() + "_bottom";
-			clear(geometry.z());
+			_name += "_bottom";
 			for (Mesh::Iterator it = mesh.vertexIterator(); it.is_good(); it.next())
 			{
 				Triangle tri = it.get();
-				triangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
-						 Image::minValue);
+				drawTriangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
+						 Image::x_less_than_y);
 			}
-			assert(fabs(_minColor) < 1.);
-			dilate(dilationValue, Image::minValue);
-			assert(fabs(_minColor) < 1.);
+			dilate(dilationValue, Image::x_less_than_y);
 			break;
 
 		default:
@@ -85,12 +76,18 @@ Image::~Image()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Image::clear(float value)
+void Image::clear()
 {
-    for (unsigned i = 0; i < (_width * _height); i++)
-        _data[i] = value;
+	_alpha.assign(_width * _height, false);
+	_minColor = INFINITY;
+	_maxColor = -INFINITY;
+}
 
-    _minColor = _maxColor = value;
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void Image::setAllPixelsTo(ColorType value)
+{
+	_maxColor = _minColor = value;
+	_alpha.assign(_width * _height, true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,23 +97,14 @@ bool Image::pixelIsInside(int x, int y)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Image::updateMinMax(ColorType color)
+void Image::setPixel(unsigned x, unsigned y, ColorType color)
 {
-	if (color != -INFINITY)
-		_minColor = std::min(_minColor, color);
-
-	if (color != INFINITY)
-		_maxColor = std::max(_maxColor, color);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void Image::setPixel(unsigned x, unsigned y, ColorType pixel)
-{
-	assert(x < _width);
-	assert(y < _height);
-
-    _data[y * _width + x] = pixel;
-	updateMinMax(pixel);
+	assert(x < _width and y < _height);
+	unsigned idx = y * _width + x;
+	_data[idx] = color;
+	_alpha[idx] = true;
+	_minColor = std::min(_minColor, color);
+	_maxColor = std::max(_maxColor, color);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,17 +121,17 @@ QImage Image::toQImage() const
     {
         for (unsigned y = 0; y < _height; y++)
         {
-			ColorType colorValue = _data[y * _width + x];
+			unsigned idx = y * _width + x;
+			unsigned rgbColor;
+			if (_alpha[idx])
+			{
+				int color8 = (_data[idx] - _minColor) * colorStep;
+				assert(color8 >= 0 and color8 < 256);
+				rgbColor =  (color8 << 16) | (color8 << 8) | color8;
+			}
+			else
+				rgbColor = (59U << 16) | (110U << 8) | (165U);
 
-			// infinity should signify transparent regions.
-			if (colorValue == -INFINITY)
-				colorValue = _minColor;
-			else if (colorValue == INFINITY)
-				colorValue = _maxColor;
-
-			int color = ((colorValue - _minColor) * colorStep);
-			assert(color >= 0 and color < 256);
-			unsigned rgbColor =  (color << 16) | (color << 8) | color;
             image.setPixel(x, y, rgbColor);
         }
     }
@@ -156,6 +144,7 @@ QImage Image::toQImage() const
 /// creates a border around the image
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
 void Image::addBorder(unsigned borderSize, ColorType defaultValue)
 {
     if(borderSize == 0)
@@ -181,15 +170,16 @@ void Image::addBorder(unsigned borderSize, ColorType defaultValue)
     _width = newWidth;
     _height = newHeight;
 }
+*/
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-bool Image::minValue(ColorType imageZ, ColorType newZ)
+bool Image::x_less_than_y(ColorType imageZ, ColorType newZ)
 {
     return imageZ < newZ;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-bool Image::maxValue(ColorType imageZ, ColorType newZ)
+bool Image::x_greater_y(ColorType imageZ, ColorType newZ)
 {
     return imageZ > newZ;
 }
@@ -199,6 +189,7 @@ bool Image::maxValue(ColorType imageZ, ColorType newZ)
 /// calculates maximum color for a region inside this image.
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
 Image::ColorType Image::maxColor(unsigned x, unsigned y, unsigned w, unsigned h) const
 {
 	ColorType color = at(x, y);
@@ -229,7 +220,7 @@ Image::ColorType Image::minColor(unsigned x, unsigned y, unsigned w, unsigned h)
 	}
 	return color;
 }
-
+*/
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 {
@@ -240,39 +231,49 @@ void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 	{
 		for (unsigned other_x = 0; other_x < other.getWidth(); other_x++)
 		{
-			ColorType other_z = other.at(other_x, other_y);
-			setPixel(x + other_x, y + other_y, z + other_z);
+			if (other.hasPixelAt(other_x, other_y))
+			{
+				ColorType other_z = other.at(other_x, other_y);
+				setPixel(x + other_x, y + other_y, z + other_z);
+			}
 		}
 	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-float Image::computeMinZDistance(unsigned x, unsigned y, const Image &other) const
+float Image::computeMinZDistance(unsigned current_x, unsigned current_y, const Image &bottom) const
 {
-	if ((x + other.getWidth() > _width) or (y + other.getHeight() > _height))
+	if ((current_x + bottom.getWidth() > _width) or (current_y + bottom.getHeight() > _height))
 		throw Exception("%s: images overlap", __FUNCTION__);
 
-	assert(other.minColor() > -1. and other.minColor() < 1.);
+	//assert(other.minColor() > -1);
 
-	Image::ColorType minDist = other.at(0, 0);
+	Image::ColorType min_z = INFINITY;
 	unsigned min_x = 0;
 	unsigned min_y = 0;
 
 	// TODO : use SSE
-	for (unsigned xx = 0; xx < other.getWidth(); xx++)
+	for (unsigned x = 0; x < bottom.getWidth(); x++)
 	{
-		for (unsigned yy = 0; yy < other.getHeight(); yy++)
+		for (unsigned y = 0; y < bottom.getHeight(); y++)
 		{
-			Image::ColorType dist = other.at(xx, yy) - at(x + xx, y + yy);			
-			if (dist < minDist)
+			if (hasPixelAt(current_x + x, current_y + y) and bottom.hasPixelAt(x, y))
 			{
-				minDist = dist;
-				min_x = xx;
-				min_y = yy;
+				Image::ColorType dist = bottom.at(x, y) - at(current_x + x, current_y + y);
+				if (dist < min_z)
+				{
+					min_z = dist;
+					min_x = x;
+					min_y = y;
+				}
 			}
 		}
 	}
-	return other.at(min_x, min_y) - minDist;
+
+	if (min_z == INFINITY)
+		throw Exception("%s: images don't overlap", __FUNCTION__);
+
+	return bottom.at(min_x, min_y) - min_z;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -283,17 +284,19 @@ void Image::recalcMinMax()
 
 	for (unsigned i = 0; i < (_width * _height); i++)
 	{
-		_minColor = std::min(_minColor, _data[i]);
-		_maxColor = std::max(_maxColor, _data[i]);
+		if (_alpha[i])
+		{
+			_minColor = std::min(_minColor, _data[i]);
+			_maxColor = std::max(_maxColor, _data[i]);
+		}
 	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-bool circlePredicate(unsigned x, unsigned y, unsigned radius2)
+static inline bool circlePredicate(int x, int y, unsigned radius2)
 {
-	return (x * x + y * y) < radius2;
+	return (unsigned)(x * x + y * y) < radius2;
 	//return true;
-
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -302,32 +305,37 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	if (dilationValue == 0)
 		return;
 
-	ColorType clearColor;
-	if (compare(_maxColor, _minColor))
-		clearColor = _minColor;
-	else if (compare(_minColor, _maxColor))
-		clearColor = _maxColor;
-	else
-		throw Exception("bad compare func");
-
-	Image newImage(dilationValue * 2 + _width, dilationValue * 2 + _height, clearColor);
+	//Image newImage(dilationValue * 2 + _width, dilationValue * 2 + _height, clearColor);
+	Image newImage(dilationValue * 2 + _width, dilationValue * 2 + _height);
 	unsigned dilation2 = dilationValue * dilationValue;
 
 	for (unsigned x = 0; x < _width; x++)
 	{
 		for (unsigned y = 0; y < _height; y++)
-		{
-			ColorType color = at(x, y);
-			if (color != clearColor)
+		{			
+			if (hasPixelAt(x, y))
 			{
-				ColorType newColor = ((clearColor == _minColor) ? (color + dilationValue) : (color - dilationValue));
+				ColorType color = at(x, y);
+				ColorType newColor;
+				if (compare == x_greater_y)
+					newColor = color + dilationValue;
+				else if (compare == x_less_than_y)
+					newColor = color - dilationValue;
+				else
+					throw Exception("%s: unknown compare func.", __FUNCTION__);
 
-				for (unsigned j = x - dilationValue; j < (x + dilationValue); j++)
+				for (int dil_y = -(int)dilationValue; dil_y < (int)dilationValue; dil_y++)
 				{
-					for (unsigned k = y - dilationValue; k < (y + dilationValue ); k++)
+					for (int dil_x = -(int)dilationValue; dil_x < (int)dilationValue; dil_x++)
 					{
-						if (circlePredicate(j - x, k - y, dilation2) and compare(newColor, newImage.at(j, k)))
-							newImage.setPixel(j, k, newColor);
+						int new_x = (int)x + (int)dilationValue + dil_x;
+						int new_y = (int)y + (int)dilationValue + dil_y;
+						if (	circlePredicate(dil_x, dil_y, dilation2) and // inside a circle
+								(not newImage.hasPixelAt(new_x, new_y) or // no pixel at this place
+								 compare(newColor, newImage.at(new_x, new_y)))) // new pixel is better
+						{
+							newImage.setPixel(new_x, new_y, newColor);
+						}
 					}
 				}
 			}
@@ -335,12 +343,13 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	}
 
 	std::swap(_data, newImage._data);
-	_height = newImage._height;
+	_alpha = std::vector<bool>(newImage._alpha);
 	_width = newImage._width;
-	_maxColor = newImage._maxColor;
+	_height = newImage._height;
 	_minColor = newImage._minColor;
+	_maxColor = newImage._maxColor;
 
-	//recalcMinMax();
+	/*
 	if (_minColor != 0)
 	{
 		for (unsigned i = 0; i < (_width * _height); i++)
@@ -348,16 +357,16 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 			_data[i] -= _minColor;
 		}
 
-		_minColor -= _minColor;
 		_maxColor -= _minColor;
+		_minColor = 0;
 	}
-	// */
-	recalcMinMax();
+	*/
+	//recalcMinMax();
 }
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(ColorType, ColorType))
+void Image::drawTriangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(ColorType, ColorType))
 {
 	// convert to integer vectors with proper rounding
 	vec3i a = vec3i::from(fa);
@@ -420,9 +429,9 @@ void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(C
 				//double newValue1 = (double)start.z() + (double)span.z() * progress;
 				double newValue = z_start + (z_end - z_start) * progress;
 
-				if (pixelIsInside(x, y))
+				assert (pixelIsInside(x, y));
                 {
-					if (not compare(at(x, y), newValue))
+					if (not hasPixelAt(x, y) or not compare(at(x, y), newValue))
 						setPixel(x, y, newValue);
                 }
             }
@@ -457,9 +466,9 @@ void Image::triangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(C
 				//double newValue = (double)start.z() + (double)span.z() * progress;
 				double newValue = z_start + (z_end - z_start) * progress;
 
-				if (pixelIsInside(x, y))
+				assert (pixelIsInside(x, y));
                 {
-					if (not compare(at(x, y), newValue))
+					if (not hasPixelAt(x, y) or not compare(at(x, y), newValue))
 						setPixel(x, y, newValue);
                 }
             }

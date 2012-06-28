@@ -8,7 +8,7 @@ Node::Node(QString filename, unsigned dilation)	: _dilation(dilation)
     _mesh = new Mesh(filename.toUtf8().constData());
 	auto_ptr<Mesh> mesh_guard(_mesh);
 
-	#pragma omp parallel
+	//pragma omp parallel
 	{
 		_top = new Image(*_mesh, Image::Top, dilation);
 		_bottom = new Image(*_mesh, Image::Bottom, dilation);

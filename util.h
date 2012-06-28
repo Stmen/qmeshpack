@@ -38,7 +38,7 @@ union vec3i
 
 	static vec3i from(QVector3D v)
 	{
-		v += QVector3D(0.5, 0.5, 0.5); // rounding
+		//v += QVector3D(0.5, 0.5, 0.5); // rounding
 		v4si result = {(int)v.x(), (int)v.y(), (int)v.z(), 0};
 		return { result };
 	}
