@@ -2,7 +2,7 @@ TEMPLATE = app
 VERSION = 1.0.0xB2
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 QT += opengl
-CONFIG += thread qt exceptions
+CONFIG += gui qt thread exceptions
 CONFIG(release, debug|release): DEFINES += NDEBUG
 QMAKE_CXXFLAGS += -std=c++11 -march=core2 -fopenmp
 QMAKE_LFLAGS += -fopenmp

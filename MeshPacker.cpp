@@ -6,11 +6,68 @@
 #include <functional>
 #include <QStringList>
 #include <stdexcept>
+#include <omp.h>
 #include "config.h"
+
+template <class T, T min_x, T max_x>
+union RangeIterator2
+{
+    T y;
+    T x;
+
+    std::pair<T, T> operator*() const
+    {
+        return std::make_pair(x, y);
+    }
+
+    bool operator==(const RangeIterator2& other) const
+    {
+        return (x == other.x) and (y == other.y);
+    }
+
+    void operator++()
+    {
+        x++;
+        if (x == max_x)
+            x == min_x;
+    }
+
+    /// Advances the iterator by n items
+    void operator+=(size_t n)
+    {
+
+    }
+
+
+    // --i	Moves the iterator back by one item
+    void operator--()
+    {
+        if (x == min_x)
+        {
+            x = max_x;
+            y--;
+        }
+    }
+
+    //i -= n	Moves the iterator back by n items
+    void operator-=(size_t n)
+    {
+
+    }
+
+    // i - j	Returns the number of items between iterators i and j
+    ptrdiff_t operator-(const RangeIterator2& other)
+    {
+        return (y - other.y) * (max_x - min_x) + (other.x - x);
+    }
+
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 	QThread(parent), _task(ComputePositions), _nodes(nodes)
 {
+    omp_set_num_threads(QThread::idealThreadCount());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -146,6 +203,7 @@ void WorkerThread::computePositions()
 		for (unsigned i = 0; i < _nodes.numNodes(); i++)
 		{
 			Node* node = _nodes.getNode(i);
+            //node->setPos(QVector3D(0., 0., 0.));
 			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 			max_progress += max.x() * max.y();
 		}

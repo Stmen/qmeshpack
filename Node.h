@@ -19,8 +19,10 @@ struct Node
 	const Image*	getBottom() const { return _bottom; }
 	void			scaleMesh(const QVector3D factor);
 	void			translateMesh(const QVector3D offset);
-	void			setPos(QVector3D pos) { _transform.setColumn(3, QVector4D(pos, 1.)); }
-	QVector3D		getPos() const { return _transform.column(3).toVector3D(); }
+    void			setPos(QVector3D pos) { _pos = pos; }
+    QVector3D		getPos() const { return _pos; }
+    //void			setPos(QVector3D pos) { _transform.setColumn(3, QVector4D(pos, 1.)); }
+    //QVector3D		getPos() const { return _transform.column(3).toVector3D(); }
 	unsigned		getDilationValue() const  { return _dilation; }
 
 private:
@@ -30,5 +32,6 @@ private:
 	Image*		_top;
 	Image*		_bottom;
 	unsigned	_dilation;
-	QMatrix4x4	_transform;
+    //QMatrix4x4	_transform;
+    QVector3D   _pos;
 };
