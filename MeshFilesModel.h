@@ -1,8 +1,7 @@
 #pragma once
 #include <QAbstractItemModel>
-#include "image.h"
-#include "Node.h"
 #include <vector>
+#include "Node.h"
 
 class NodeModel : public QAbstractItemModel
 {

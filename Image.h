@@ -1,6 +1,6 @@
 #pragma once
 #include <QImage>
-#include "mesh.h"
+#include "Mesh.h"
 #include <vector>
 
 class ImageRegion;

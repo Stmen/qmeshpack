@@ -8,7 +8,7 @@
 #include <map>
 #include <vector>
 #include "config.h"
-#include "mesh.h"
+#include "Mesh.h"
 #include "Exception.h"
 #include "util.h"
 

@@ -20,7 +20,7 @@
 #include <QToolBar>
 #include <QTextEdit>
 #include <QVariant>
-#include "MeshPacker.h"
+#include "WorkerThread.h"
 #include "ModelView.h"
 
 class MainWindow : public QMainWindow

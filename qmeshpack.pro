@@ -8,28 +8,28 @@ QMAKE_CXXFLAGS += -std=c++11 -march=core2 -fopenmp
 QMAKE_LFLAGS += -fopenmp
 SOURCES += main.cpp \
     mainwindow.cpp \
-    mesh.cpp \
     Exception.cpp \
     util.cpp \
-    image.cpp \
     vectorinputdialog.cpp \
     MeshFilesModel.cpp \
     GLView.cpp \
     Node.cpp \
     ModelView.cpp \
-    WorkerThread.cpp
+    WorkerThread.cpp \
+    Mesh.cpp \
+    Image.cpp
 HEADERS += mainwindow.h \
-    mesh.h \
     Exception.h \
     util.h \
-    image.h \
     vectorinputdialog.h \
     MeshFilesModel.h \
     GLView.h \
     Node.h \
     ModelView.h \
     config.h \
-    WorkerThread.h
+    WorkerThread.h \
+    Mesh.h \
+    Image.h
 RESOURCES += \
     icons.qrc
 
