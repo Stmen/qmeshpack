@@ -1,4 +1,4 @@
-#include "MeshPacker.h"
+#include "WorkerThread.h"
 #include <QAtomicInt>
 #include <QDateTime>
 #include <QtConcurrentMap>
@@ -12,54 +12,54 @@
 template <class T, T min_x, T max_x>
 union RangeIterator2
 {
-    T y;
-    T x;
+	T y;
+	T x;
 
-    std::pair<T, T> operator*() const
-    {
-        return std::make_pair(x, y);
-    }
+	std::pair<T, T> operator*() const
+	{
+		return std::make_pair(x, y);
+	}
 
-    bool operator==(const RangeIterator2& other) const
-    {
-        return (x == other.x) and (y == other.y);
-    }
+	bool operator==(const RangeIterator2& other) const
+	{
+		return (x == other.x) and (y == other.y);
+	}
 
-    void operator++()
-    {
-        x++;
-        if (x == max_x)
-            x == min_x;
-    }
+	void operator++()
+	{
+		x++;
+		if (x == max_x)
+			x == min_x;
+	}
 
-    /// Advances the iterator by n items
-    void operator+=(size_t n)
-    {
+	/// Advances the iterator by n items
+	void operator+=(size_t n)
+	{
 
-    }
+	}
 
 
-    // --i	Moves the iterator back by one item
-    void operator--()
-    {
-        if (x == min_x)
-        {
-            x = max_x;
-            y--;
-        }
-    }
+	// --i	Moves the iterator back by one item
+	void operator--()
+	{
+		if (x == min_x)
+		{
+			x = max_x;
+			y--;
+		}
+	}
 
-    //i -= n	Moves the iterator back by n items
-    void operator-=(size_t n)
-    {
+	//i -= n	Moves the iterator back by n items
+	void operator-=(size_t n)
+	{
 
-    }
+	}
 
-    // i - j	Returns the number of items between iterators i and j
-    ptrdiff_t operator-(const RangeIterator2& other)
-    {
-        return (y - other.y) * (max_x - min_x) + (other.x - x);
-    }
+	// i - j	Returns the number of items between iterators i and j
+	ptrdiff_t operator-(const RangeIterator2& other)
+	{
+		return (y - other.y) * (max_x - min_x) + (other.x - x);
+	}
 
 };
 
@@ -67,7 +67,7 @@ union RangeIterator2
 WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 	QThread(parent), _task(ComputePositions), _nodes(nodes)
 {
-    omp_set_num_threads(QThread::idealThreadCount());
+	omp_set_num_threads(QThread::idealThreadCount());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -173,12 +173,12 @@ void WorkerThread::run()
 		}
 	}
 	catch(const std::exception& ex)
-    {
-        report(tr("exception in worker thread: %1").arg(QString::fromUtf8(ex.what())), 2);
-	}
-    catch(...)
 	{
-        report(tr("unknown exception in worker thread!"), 2);
+		report(tr("exception in worker thread: %1").arg(QString::fromUtf8(ex.what())), 2);
+	}
+	catch(...)
+	{
+		report(tr("unknown exception in worker thread!"), 2);
 	}
 
 	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
@@ -197,13 +197,13 @@ bool WorkerThread::nodeFits(const Node* node) const
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::computePositions()
-{	
+{
 	{
 		size_t max_progress = 0;
 		for (unsigned i = 0; i < _nodes.numNodes(); i++)
 		{
 			Node* node = _nodes.getNode(i);
-            node->setPos(QVector3D(0., 0., 0.));
+			node->setPos(QVector3D(0., 0., 0.));
 			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 			max_progress += max.x() * max.y();
 		}
@@ -214,13 +214,13 @@ void WorkerThread::computePositions()
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
 	base.setAllPixelsTo(0.);
 
-    QAtomicInt progress_atom(0);
+	QAtomicInt progress_atom(0);
 	for (size_t i = 0; i < _nodes.numNodes(); i++)
 	{
 		Node* node = _nodes.getNode(i);
 		emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
 
-        Image::ColorType best_z = INFINITY;
+		Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
 		unsigned best_y = 0;
 
@@ -234,7 +234,7 @@ void WorkerThread::computePositions()
 		unsigned max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();
 
 		bool abort = false;
-        #pragma omp parallel for collapse(2)
+		#pragma omp parallel for collapse(2)
 		for (unsigned y = 0; y < max_y; y++)
 		{
 			for (unsigned x = 0; x < max_x; x++)
@@ -251,7 +251,7 @@ void WorkerThread::computePositions()
 					}
 
 					Image::ColorType z = base.computeMinZDistance(x, y, *(node->getBottom()));
-                    emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+					emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
 
 					#pragma omp critical
 					{
@@ -281,8 +281,8 @@ void WorkerThread::computePositions()
 			}
 		}
 
-        assert(best_x + node->getTop()->getWidth() <= base.getWidth());
-        assert(best_y + node->getTop()->getHeight() <= base.getHeight());		
+		assert(best_x + node->getTop()->getWidth() <= base.getWidth());
+		assert(best_y + node->getTop()->getHeight() <= base.getHeight());
 
 
 		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
@@ -294,10 +294,10 @@ void WorkerThread::computePositions()
 			break;
 		}
 
-        base.insertAt(best_x, best_y, best_z, *(node->getTop()));
+		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
 
 		node->setPos(newPos);
-        _nodes.nodePositionChanged(i);
+		_nodes.nodePositionChanged(i);
 	}
-    #pragma omp flush
+	#pragma omp flush
 }

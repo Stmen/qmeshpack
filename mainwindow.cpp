@@ -480,7 +480,7 @@ static void unrollListFiles(QString filename, QStringList& out)
 {
 	QFile file(filename);
 	if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
-		throw Exception("Unable to open file %s: %s", filename.toUtf8().constData(), file.errorString().toUtf8().constData());
+		THROW(BaseException, QString("Unable to open file %1: %2").arg(filename, file.errorString()));
 
 
 	while (not file.atEnd() and file.isReadable())

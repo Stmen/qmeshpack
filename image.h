@@ -11,8 +11,9 @@ public:
 
     enum Mode
     {
-        Top = 0,
-        Bottom
+		Bad = 0,
+		Top = 1,
+		Bottom = 2
     };
 
 	typedef float ColorType;

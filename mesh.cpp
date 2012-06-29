@@ -1,21 +1,17 @@
 #include <QString>
 #include <QStringList>
-#include <fstream>
+#include <QFile>
+#include <QTextStream>
 #include <algorithm>
-#include <sstream>
 #include <cmath>
 #include <cassert>
 #include <map>
 #include <vector>
-#include <cstring>
 #include "config.h"
 #include "mesh.h"
 #include "Exception.h"
 #include "util.h"
-#include <QFile>
-#include <QTextStream>
 
-using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Mesh::Mesh(const Mesh& other) :
@@ -52,8 +48,8 @@ Mesh::Mesh(const char* off_filename) :
     QFile file(_filename);
     if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-        throw Exception("%s: Unable to open file \'%s\' for reading.", __FUNCTION__, file.errorString().toUtf8().constData());
-        return;
+		THROW(MeshException, QString("Unable to open file \'%1\' for reading.").arg(file.errorString()));
+
     }
 
     QTextStream in(&file);
@@ -72,7 +68,7 @@ Mesh::Mesh(const char* off_filename) :
     // is signature correct?
     line.truncate(3);
     if(line.isNull() or (line != "OFF" and line != "off"))
-        throw Exception("%s: not an OFF file ", __FUNCTION__);
+		THROW(MeshException, QString("\'%1\'' is not an OFF file ").arg(off_filename));
     lineNumber++;
 
     // skip comments
@@ -85,12 +81,10 @@ Mesh::Mesh(const char* off_filename) :
     QStringList lst = line.split(' ');
 
     // get vertex_count face_count edge_count
-    size_t vertex_count = lst.at(0).toULong(), face_count = lst.at(1).toULong(), edge_count = lst.at(2).toULong();
+	size_t vertex_count = lst.at(0).toULong(), face_count = lst.at(1).toULong();//, edge_count = lst.at(2).toULong();
 
     resetMinMax();
 
-    //#define MAX_BUFF_SIZE 1024
-    //char buff[MAX_BUFF_SIZE];
     // process vertices
     for (size_t i = 0; i < vertex_count and not in.atEnd(); i++)
     {
@@ -98,7 +92,7 @@ Mesh::Mesh(const char* off_filename) :
         float coord[3];
         in >> coord[0] >> coord[1] >> coord[2];
         if (in.status() != QTextStream::Ok)
-            throw Exception("%s: in %s:%u failed to read coordinate.", __FUNCTION__, off_filename, lineNumber);
+			THROW(MeshException, QString(" in %1:%1 failed to read coordinate.").arg(off_filename, QString::number(lineNumber)));
 		_vertices.push_back(QVector3D(coord[0], coord[1], coord[2]));
     }
 
@@ -135,11 +129,11 @@ Mesh::Mesh(const char* off_filename) :
 					_triangleIndices.push_back(vertexIndex);
 				}
                 else
-                    throw Exception("%s: in %s:%u polygon is not a Triangle.", __FUNCTION__, off_filename, lineNumber);
+					THROW(MeshException, QString("in %1:%2 polygon is not a Triangle.").arg(off_filename, QString::number(lineNumber)));
             }			
         }
         else
-            throw Exception("%s: in %s:%u failed to read number of vertices.", __FUNCTION__, off_filename, lineNumber);
+			THROW(MeshException, QString("in %1:%2 failed to read number of vertices.").arg(off_filename, QString::number(lineNumber)));
 
         lineNumber++;
     }
@@ -195,7 +189,7 @@ void Mesh::save(QString filename)
 	QFile file(filename);
 	if (not file.open(QIODevice::WriteOnly | QIODevice::Text))
 	{
-		throw Exception("%s: Unable to open file \'%s\' for writing.", __FUNCTION__, file.errorString().toUtf8().constData());
+		THROW(MeshException, QString("Unable to open file \'%1\' for writing.").arg(file.errorString()));
 		return;
 	}	
 
@@ -241,7 +235,7 @@ void Mesh::save(QString filename)
 		out << "endsolid " << name << '\n';
 	}
 	else
-		throw Exception("%s: unknown mesh extension in \'%s.\'", __FUNCTION__, filename.toUtf8().constData());
+		THROW(MeshException, QString("unknown mesh extension in \'%s.\'").arg(filename));
 
 	file.close();
 }
@@ -250,7 +244,7 @@ void Mesh::save(QString filename)
 void Mesh::setVertex(unsigned idx, QVector3D newVertex)
 {
     if (idx >= numVertices())
-        throw Exception("%s: bad index", __FUNCTION__);
+		THROW(MeshException, QString("bad index %1").arg(QString::number(idx)));
 
 	_vertices[idx] = newVertex;
 }
@@ -259,7 +253,7 @@ void Mesh::setVertex(unsigned idx, QVector3D newVertex)
 QVector3D Mesh::getVertex(unsigned idx) const
 {
     if (idx >= numVertices())
-        throw Exception("%s: bad index", __FUNCTION__);
+		THROW(MeshException, QString("bad index %1").arg(QString::number(idx)));
 
 	return _vertices[idx];
 }
@@ -421,7 +415,7 @@ void drawAxisAlignedBox(QVector3D min, QVector3D max)
 		max.x(), min.y(), max.z()
 	};
 
-	static unsigned indices[] =
+	static const unsigned indices[] =
 	{
 			0, 1, 2, 3, // front face
 			0, 4, 5, 1, // left face
@@ -437,7 +431,7 @@ void drawAxisAlignedBox(QVector3D min, QVector3D max)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::draw(bool drawAABB) const
 {	
-	//glEnableClientState(GL_VERTEX_ARRAY);
+	//glEnableClientState(GL_VERTEX_ARRAY); // enabling/disabling client state is moved to GLView
 	if (drawAABB)
 		drawAxisAlignedBox(_min, _max);
 

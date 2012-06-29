@@ -16,7 +16,7 @@ Image::Image(unsigned width, unsigned height) :
 	_maxColor(-INFINITY)
 {	
 	if (width == 0 or height == 0)
-        throw Exception("bad geometry");
+		THROW(ImageException, "bad geometry");
 
 	_alpha.resize(width * height, false);
     _data = new ColorType[width * height];
@@ -28,15 +28,19 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue) :
 	_maxColor(-INFINITY)
 {
 	QVector3D geometry = mesh.getGeometry();
-
-	if (geometry.x() < 1. or geometry.y() < 1. or geometry.z() < 1.)
-		throw Exception("%s: mesh \"%s\" has bad geometry", __FUNCTION__, mesh.getName().toUtf8().constData());
-
 	_width = geometry.x();
 	_height = geometry.y();
-	_alpha.resize(_width * _height, false);
-    _data = new ColorType[_width * _height];
 	_name = mesh.getName();
+
+	if (geometry.x() < 1. or geometry.y() < 1. or geometry.z() < 1.)
+	{
+		THROW(ImageException, QString("mesh \"%1\" is too small, its dimensions are: (%2, %3, %4), scale it up.").arg(mesh.getName(),
+						QString::number(geometry.x()), QString::number(geometry.y()), QString::number(geometry.z())));
+	}
+
+	_alpha.resize(_width * _height, false);
+	_data = new ColorType[_width * _height];
+
 
     switch (mode)
     {
@@ -65,7 +69,7 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue) :
 			break;
 
 		default:
-			throw Exception("%s: bad drawing mode", __FUNCTION__);
+			THROW(ImageException, "bad drawing mode");
     }		
 }
 
@@ -225,7 +229,7 @@ Image::ColorType Image::minColor(unsigned x, unsigned y, unsigned w, unsigned h)
 void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 {
 	if ((x + other.getWidth() > _width) or (y + other.getHeight() > _height))
-		throw Exception("%s: images overlap", __FUNCTION__);
+		THROW(ImageException, "images overlap");
 
 	for (unsigned other_y = 0; other_y < other.getHeight(); other_y++)
 	{
@@ -244,7 +248,7 @@ void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 float Image::computeMinZDistance(unsigned current_x, unsigned current_y, const Image &bottom) const
 {
 	if ((current_x + bottom.getWidth() > _width) or (current_y + bottom.getHeight() > _height))
-		throw Exception("%s: images overlap", __FUNCTION__);
+		THROW(ImageException, "images overlap");
 
 	//assert(other.minColor() > -1);
 
@@ -271,7 +275,7 @@ float Image::computeMinZDistance(unsigned current_x, unsigned current_y, const I
 	}
 
 	if (min_z == INFINITY)
-		throw Exception("%s: images don't overlap", __FUNCTION__);
+		THROW(ImageException, "images don't overlap anywhere");
 
 	return bottom.at(min_x, min_y) - min_z;
 }
@@ -322,7 +326,7 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 				else if (compare == x_less_than_y)
 					newColor = color - dilationValue;
 				else
-					throw Exception("%s: unknown compare func.", __FUNCTION__);
+					THROW(ImageException, "unknown compare func.");
 
 				for (int dil_y = -(int)dilationValue; dil_y < (int)dilationValue; dil_y++)
 				{

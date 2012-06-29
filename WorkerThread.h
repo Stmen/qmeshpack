@@ -17,7 +17,7 @@ public:
 	} _task;
 
 	explicit WorkerThread(QObject *parent, NodeModel &nodes);
-	void	setNodeList(NodeModel& nodes);		
+	void	setNodeList(NodeModel& nodes);
 	void	setTask(Task task) { _task = task; }
 	void	setArgument(QVariant arg) { _args = arg; }
 	quint64	getLastProcessingMSecs() const { return _lastProcessingMSecs; }
@@ -30,7 +30,7 @@ signals:
 	void reportProgressMax(int);
 	void reportProgress(int progress);
 	void processingDone();
-	void report(QString what, unsigned level);	
+	void report(QString what, unsigned level);
 
 public slots:
 
@@ -48,7 +48,7 @@ private:
 	bool	nodeFits(const Node* node) const;
 
 	NodeModel&			_nodes;
-	bool				_shouldStop;	
+	bool				_shouldStop;
 	QVariant			_args;
 	quint64				_lastProcessingMSecs;
 };

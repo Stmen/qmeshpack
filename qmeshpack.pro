@@ -14,10 +14,10 @@ SOURCES += main.cpp \
     image.cpp \
     vectorinputdialog.cpp \
     MeshFilesModel.cpp \
-    MeshPacker.cpp \
     GLView.cpp \
     Node.cpp \
-    ModelView.cpp
+    ModelView.cpp \
+    WorkerThread.cpp
 HEADERS += mainwindow.h \
     mesh.h \
     Exception.h \
@@ -25,11 +25,11 @@ HEADERS += mainwindow.h \
     image.h \
     vectorinputdialog.h \
     MeshFilesModel.h \
-    MeshPacker.h \
     GLView.h \
     Node.h \
     ModelView.h \
-    config.h
+    config.h \
+    WorkerThread.h
 RESOURCES += \
     icons.qrc
 
