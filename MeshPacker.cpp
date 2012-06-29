@@ -173,12 +173,12 @@ void WorkerThread::run()
 		}
 	}
 	catch(const std::exception& ex)
-	{
-		report(tr("exception in worker thred: ") + QString(ex.what()), 2);
+    {
+        report(tr("exception in worker thread: %1").arg(QString::fromUtf8(ex.what())), 2);
 	}
-	catch(...)
+    catch(...)
 	{
-		report(tr("unknown exception in worker thred!"), 0);
+        report(tr("unknown exception in worker thread!"), 2);
 	}
 
 	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
@@ -203,7 +203,7 @@ void WorkerThread::computePositions()
 		for (unsigned i = 0; i < _nodes.numNodes(); i++)
 		{
 			Node* node = _nodes.getNode(i);
-            //node->setPos(QVector3D(0., 0., 0.));
+            node->setPos(QVector3D(0., 0., 0.));
 			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 			max_progress += max.x() * max.y();
 		}

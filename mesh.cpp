@@ -1,3 +1,4 @@
+#include <QString>
 #include <QStringList>
 #include <fstream>
 #include <algorithm>
@@ -43,89 +44,92 @@ Mesh::Mesh(const char* off_filename) :
 {    
 	_filename = off_filename;
 
-	{
-		QStringList sl = _filename.split('/');
-		_name = sl.at(sl.size() - 1).split(".").at(0);
-	}
+    {
+        QStringList sl = _filename.split('/');
+        _name = sl.at(sl.size() - 1).split(".").at(0);
+    }
 
-    ifstream file;
-    file.open(off_filename, fstream::in);
+    QFile file(_filename);
+    if (not file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        throw Exception("%s: Unable to open file \'%s\' for reading.", __FUNCTION__, file.errorString().toUtf8().constData());
+        return;
+    }
 
-    if (file.fail())
-        throw Exception("%s: failed to open file %s", __FUNCTION__, off_filename);
+    QTextStream in(&file);
 
-    string line;
     int lineNumber = 0;
+    QString line;
 
-    // skip comments
     do
     {
-        getline(file, line);
+        line = in.readLine();
         lineNumber++;
     }
-    while(file.good() and line[0] == '#');
+    while (not line.isEmpty() and line.at(0) == '#');
+
 
     // is signature correct?
-    line = line.substr(0, 3);
-    if(not file.good() or (line != "OFF" and line != "off"))
+    line.truncate(3);
+    if(line.isNull() or (line != "OFF" and line != "off"))
         throw Exception("%s: not an OFF file ", __FUNCTION__);
     lineNumber++;
 
     // skip comments
     do
     {
-        getline(file, line);
+        line = in.readLine();
         lineNumber++;
     }
-    while(file.good() and line[0] == '#');
-
-    istringstream iss;
-    iss.exceptions((std::_Ios_Iostate)(ifstream::failbit | ifstream::badbit));
-    iss >> skipws;
-    iss.clear();
+    while(not line.isNull() and line.at(0) == '#');
+    QStringList lst = line.split(' ');
 
     // get vertex_count face_count edge_count
-    size_t vertex_count, face_count, edge_count;
-    iss.str(line);
-    if (not ((iss >> vertex_count) and (iss >> face_count) and (iss >> edge_count)))
-        throw Exception("%s: in %s:%u failed to read vertex_count face_count edge_count.", __FUNCTION__, off_filename, lineNumber);
-    lineNumber++;
+    size_t vertex_count = lst.at(0).toULong(), face_count = lst.at(1).toULong(), edge_count = lst.at(2).toULong();
 
     resetMinMax();
 
     //#define MAX_BUFF_SIZE 1024
     //char buff[MAX_BUFF_SIZE];
     // process vertices
-    for(size_t i = 0; i < vertex_count and file.good(); i++)
-    {     
-        //getline(file, line);
-        //iss.str(line);
-
-        float coord[3];
-        for(unsigned i = 0; i < 3; i++)
-        {
-            file >> coord[i];
-        }
-
-		_vertices.push_back(QVector3D(coord[0], coord[1], coord[2]));
-
+    for (size_t i = 0; i < vertex_count and not in.atEnd(); i++)
+    {
         lineNumber++;
+        float coord[3];
+        in >> coord[0] >> coord[1] >> coord[2];
+        if (in.status() != QTextStream::Ok)
+            throw Exception("%s: in %s:%u failed to read coordinate.", __FUNCTION__, off_filename, lineNumber);
+		_vertices.push_back(QVector3D(coord[0], coord[1], coord[2]));
     }
 
     // process faces
-    for(size_t i = 0; i < face_count and file.good(); i++)
+    for(size_t i = 0; i < face_count and not in.atEnd(); i++)
     {
+        unsigned firstIndex, lastIndex;
         int poly_type;
-        if(file >> poly_type)
+        in >> poly_type;
+        if (in.status() == QTextStream::Ok)
         {
+            /*
             if(poly_type != 3)
                 throw Exception("%s: in %s:%u polygon is not a triangle.", __FUNCTION__, off_filename, lineNumber);
+            */
 
+            unsigned vertexIndex;
             for(int i = 0; i < poly_type; i++)
             {
-                unsigned vertexIndex;
-                if(file >> vertexIndex)
+                lastIndex = vertexIndex;
+                in >> vertexIndex;
+                if (in.status() == QTextStream::Ok)
 				{
+                    if (i == 0)
+                        firstIndex = vertexIndex;
+                    else if (i > 2) // this triangulation should work for convex polygons
+                    {
+                        _triangleIndices.push_back(firstIndex);
+                        _triangleIndices.push_back(lastIndex);
+                    }
+
 					_min = vecmin(_min, _vertices[vertexIndex]);
 					_max = vecmax(_max, _vertices[vertexIndex]);
 					_triangleIndices.push_back(vertexIndex);
