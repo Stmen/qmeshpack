@@ -2,6 +2,7 @@
 #include <QString>
 #include <QVector3D>
 #include <cmath>
+#include "config.h"
 
 union vec3i
 {
@@ -107,3 +108,146 @@ private:
 	array_ptr(const array_ptr& other);
 	array_ptr& operator=(const array_ptr& other);
 };
+
+
+#include <iterator>
+#include <cassert>
+struct DoubleRangeIterator : public  std::iterator<std::bidirectional_iterator_tag, quint64>
+{
+	quint64 _x;
+	quint64 _y;
+	quint32 _min_x, _max_x, _min_y, _max_y;
+
+	DoubleRangeIterator(quint32 min_x, quint32 max_x, quint32 min_y, quint32 max_y) :
+		_x(min_x), _y(min_y), _min_x(min_x), _max_x(max_x), _min_y(min_y), _max_y(max_y)
+	{
+	}
+
+	DoubleRangeIterator(quint32 x, quint32 y, quint32 min_x, quint32 max_x, quint32 min_y, quint32 max_y) :
+		_x(x), _y(y), _min_x(min_x), _max_x(max_x), _min_y(min_y), _max_y(max_y)
+	{
+		assert(x >= _min_x and x < _max_x);
+		assert(y >= _min_y and y <= _max_y);
+	}
+
+	DoubleRangeIterator(const DoubleRangeIterator& other, quint32 x, quint32 y) :
+		_x(x), _y(y), _min_x(other._min_x), _max_x(other._max_x), _min_y(other._min_y), _max_y(other._max_y)
+	{
+		assert(x >= _min_x and x < _max_x);
+		assert(y >= _min_y and y <= _max_y);
+	}
+
+	DoubleRangeIterator(const DoubleRangeIterator& other)
+	{
+		(*this) = other;
+	}
+
+	DoubleRangeIterator& operator = (const DoubleRangeIterator& other)
+	{
+		memcpy(this, &other, sizeof(DoubleRangeIterator));
+		return *this;
+	}
+
+	quint64 operator * () const
+	{
+		return ((quint64)_y << 32) | ((quint64)_x & 0xFFFFFFFF);
+	}
+
+	bool operator == (const DoubleRangeIterator& other) const
+	{
+		return (_x == other._x) and (_y == other._y);
+	}
+
+	bool operator != (const DoubleRangeIterator& other) const
+	{
+		return (_x != other._x) or (_y != other._y);
+	}
+
+	void operator ++ ()
+	{
+		if (_y != _max_y)
+		{
+			_x++;
+			if (_x == _max_x)
+			{
+				_x = _min_x;
+				_y++;
+			}
+		}
+	}
+
+
+
+	/// Advances the iterator by n items
+	void operator += (ptrdiff_t n)
+	{
+		if (n < 0)
+			(*this)-= -n;
+
+		for (unsigned i = 0; i < n; ++i)
+			++(*this);
+	}
+
+	/// --i	Moves the iterator back by one item
+	void operator -- ()
+	{
+		if (_x == _min_x)
+		{
+			_x = _max_x - 1;
+			if (_y == _min_y)
+			{
+				_y = _max_y - 1;
+			}
+			else
+				_y--;
+		}
+		else
+			_x--;
+	}
+
+	//i -= n	Moves the iterator back by n items
+	void operator -= (ptrdiff_t n)
+	{
+		if (n < 0)
+			(*this)+= -n;
+
+		for (unsigned i = 0; i < n; ++i)
+			--(*this);
+	}
+
+	DoubleRangeIterator end() const
+	{
+		return DoubleRangeIterator(*this, _min_x, _max_y);
+
+	}
+
+	bool typeEqual(const DoubleRangeIterator& other) const
+	{
+		return _min_x == other._min_x and _min_y == other._min_y and _max_x == other._max_x and _max_y == other._max_y;
+	}
+
+	bool operator < (const DoubleRangeIterator& other) const
+	{
+		return (_y < other._y or (_y == other._y and _x < other._x));
+	}
+
+	// i - j	Returns the number of items between iterators i and j
+	qint64 operator-(const DoubleRangeIterator& other) const
+	{
+		assert(typeEqual(other));
+		quint32 range_x = _max_x - _min_x;
+
+		if (*this < other)
+		{
+			return -(other - (*this));
+		}
+
+		return (qint64)((_y - other._y) * range_x + (_x - other._x));
+	}
+
+};
+
+#ifdef ENABLE_TESTS
+void test_iterators();
+#endif
+

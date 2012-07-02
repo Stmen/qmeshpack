@@ -7,67 +7,29 @@
 #include <QStringList>
 #include <stdexcept>
 #include <omp.h>
+#include <cstring>
 #include "config.h"
 
-template <class T, T min_x, T max_x>
-union RangeIterator2
+//std::iterator_traits
+/*
+template <>
+struct std::iterator_traits<struct RangeIterator>
 {
-	T y;
-	T x;
-
-	std::pair<T, T> operator*() const
-	{
-		return std::make_pair(x, y);
-	}
-
-	bool operator==(const RangeIterator2& other) const
-	{
-		return (x == other.x) and (y == other.y);
-	}
-
-	void operator++()
-	{
-		x++;
-		if (x == max_x)
-			x == min_x;
-	}
-
-	/// Advances the iterator by n items
-	void operator+=(size_t n)
-	{
-
-	}
-
-
-	// --i	Moves the iterator back by one item
-	void operator--()
-	{
-		if (x == min_x)
-		{
-			x = max_x;
-			y--;
-		}
-	}
-
-	//i -= n	Moves the iterator back by n items
-	void operator-=(size_t n)
-	{
-
-	}
-
-	// i - j	Returns the number of items between iterators i and j
-	ptrdiff_t operator-(const RangeIterator2& other)
-	{
-		return (y - other.y) * (max_x - min_x) + (other.x - x);
-	}
-
+  //typedef random_access_iterator_tag  iterator_category;
+  typedef std::bidirectional_iterator_tag  iterator_category;
+  typedef quint64	value_type;
+  typedef qint64	difference_type;
+  typedef quint64*	pointer;
+  typedef quint64&	reference;
 };
-
+*/
+// */
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 	QThread(parent), _task(ComputePositions), _nodes(nodes)
 {
-	omp_set_num_threads(QThread::idealThreadCount());
+	//omp_set_num_threads(QThread::idealThreadCount());
+	omp_set_num_threads(omp_get_num_procs());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +84,7 @@ void WorkerThread::loadNodeList()
 		_nodes.addNode(node);
 	}
 #else
-	std::function<Node* (const QString& str)> nodeCreate =
+	std::function<Node* (const QString& str)> mapCreateNode =
 		[this, &progress_atom](const QString& str)
 		{
 			QStringList slist =  str.split(';');
@@ -136,11 +98,11 @@ void WorkerThread::loadNodeList()
 		};
 
 	// reducer
-	std::function<void (int, Node*)> nodeAdd =
+	std::function<void (int, Node*)> reduceAddNode =
 			[this](int a, Node* node) { (void)a; _nodes.addNode(node); };
 
 
-	QtConcurrent::blockingMappedReduced<int>(filenames, nodeCreate, nodeAdd, QtConcurrent::UnorderedReduce);
+	QtConcurrent::blockingMappedReduced<int>(filenames, mapCreateNode, reduceAddNode, QtConcurrent::UnorderedReduce);
 #endif
 }
 
@@ -193,6 +155,113 @@ bool WorkerThread::nodeFits(const Node* node) const
 			(node->getTop()->getHeight() <= geometry.y()) and
 			((node->getTop()->maxColor() - node->getBottom()->minColor()) <= geometry.z());
 
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void WorkerThread::computePositions2()
+{
+	{
+		size_t max_progress = 0;
+		for (unsigned i = 0; i < _nodes.numNodes(); i++)
+		{
+			Node* node = _nodes.getNode(i);
+			node->setPos(QVector3D(0., 0., 0.));
+			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
+			max_progress += max.x() * max.y();
+		}
+
+		emit reportProgressMax(max_progress);
+	}
+
+	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
+	base.setAllPixelsTo(0.);
+
+	QAtomicInt progress_atom(0);
+	for (size_t i = 0; i < _nodes.numNodes(); i++)
+	{
+		Node* node = _nodes.getNode(i);
+		emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+
+		Image::ColorType best_z = INFINITY;
+		unsigned best_x = 0;
+		unsigned best_y = 0;
+
+		if (not nodeFits(node))
+		{
+			emit report(QString("mesh \"%1\" does not fit at all.").arg(node->getMesh()->getName()), 2);
+			break;
+		}
+
+		unsigned max_y = _nodes.getGeometry().y() - node->getTop()->getHeight();
+		unsigned max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();
+
+		struct xyz_t { quint32 x, y; Image::ColorType z; };
+
+
+		std::function<xyz_t (quint64)> mapComputeZ =
+			[this, &base, &progress_atom, &node](quint64 coord)
+			{
+				quint32 x = (quint32)(coord & 0xFFFFFFFFU);
+				quint32 y = (quint32)((coord >> 32) & 0xFFFFFFFFU);
+				//qDebug() << QString("%1: %2 %3").arg(coord, 0, 16).arg(x, 0, 16).arg(y, 0, 16);
+				Image::ColorType z = base.computeMinZDistanceAt(x, y, *(node->getBottom()));
+				//((*istart) & 0xFFFFFFFFU) << " y: " << (((*istart) >> 32) & 0xFFFFFFFFU)
+				xyz_t out = { x, y, z};
+
+				emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+				return out;
+			};
+\
+		std::function<void (int, xyz_t)> reduceBest = [&best_x, &best_y, &best_z](int a, xyz_t xyz)
+		{
+			(void)a;
+			if (xyz.z < best_z)
+			{
+				best_z = xyz.z;
+				best_y = xyz.y;
+				best_x = xyz.x;
+			}
+			else if (xyz.z == best_z)
+			{
+				if (xyz.y < best_y)
+				{
+					best_y = xyz.y;
+					best_x = xyz.x;
+				}
+				else if (xyz.y == best_y)
+				{
+					if (xyz.x < best_x)
+					{
+						best_x = xyz.x;
+					}
+				}
+			}
+		};
+
+		DoubleRangeIterator istart(0, 0, 0, max_x, 0, max_y);
+		DoubleRangeIterator iend = istart.end();
+		QtConcurrent::blockingMappedReduced<int>(istart, iend, mapComputeZ, reduceBest, QtConcurrent::UnorderedReduce);
+		if (_shouldStop)
+				return;
+
+		assert(best_x + node->getTop()->getWidth() <= base.getWidth());
+		assert(best_y + node->getTop()->getHeight() <= base.getHeight());
+
+
+		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
+				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
+
+		if ((newPos + node->getMesh()->getGeometry()).z() > _nodes.getGeometry().z())
+		{
+			emit report(QString("mesh \"%1\" does not fit.").arg(node->getMesh()->getName()), 2);
+			break;
+		}
+
+		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
+
+		node->setPos(newPos);
+		_nodes.nodePositionChanged(i);
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -250,7 +319,7 @@ void WorkerThread::computePositions()
 						#pragma omp flush (abort)
 					}
 
-					Image::ColorType z = base.computeMinZDistance(x, y, *(node->getBottom()));
+					Image::ColorType z = base.computeMinZDistanceAt(x, y, *(node->getBottom()));
 					emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
 
 					#pragma omp critical

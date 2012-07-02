@@ -1,8 +1,12 @@
 #include "mainwindow.h"
 #include <QApplication>
+#include "util.h"
+
 
 int main(int argc, char** argv)
-{    
+{
+	//test_iterators();
+
 	QApplication app(argc, argv);
 	app.setApplicationVersion(APP_VERSION);
 	app.setStyleSheet("QSplitter::handle { background-color: gray }");

@@ -43,6 +43,7 @@ public slots:
 private:
 
 	void	computePositions();
+	void	computePositions2();
 	void	saveNodeList();
 	void	loadNodeList();
 	bool	nodeFits(const Node* node) const;

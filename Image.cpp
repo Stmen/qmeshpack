@@ -9,7 +9,7 @@
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Image::Image(unsigned width, unsigned height) :
+Image::Image(quint32 width, quint32 height) :
 	_width(width),
 	_height(height),
 	_minColor(INFINITY),
@@ -101,10 +101,10 @@ bool Image::pixelIsInside(int x, int y)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Image::setPixel(unsigned x, unsigned y, ColorType color)
+void Image::setPixel(quint32 x, quint32 y, ColorType color)
 {
 	assert(x < _width and y < _height);
-	unsigned idx = y * _width + x;
+	quint32 idx = y * _width + x;
 	_data[idx] = color;
 	_alpha[idx] = true;
 	_minColor = std::min(_minColor, color);
@@ -142,39 +142,6 @@ QImage Image::toQImage() const
 
     return image;
 }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-///
-/// creates a border around the image
-///
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-/*
-void Image::addBorder(unsigned borderSize, ColorType defaultValue)
-{
-    if(borderSize == 0)
-        throw Exception("wrong border size");
-
-    unsigned newWidth = _width + 2 * borderSize;
-    unsigned newHeight = _height + 2 * borderSize;
-    float* newData = new float[newWidth * newHeight];
-
-    for (unsigned i = 0; i < (newWidth * newHeight); i++)
-        newData[i] = defaultValue;
-
-    for (unsigned y = 0; y < _height; y++)
-    {
-        memcpy(&newData[y * newWidth + borderSize],
-               &_data[y * _width],
-               _width * sizeof(float));
-    }
-
-    delete[] _data;
-
-    _data = newData;
-    _width = newWidth;
-    _height = newHeight;
-}
-*/
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 bool Image::x_less_than_y(ColorType imageZ, ColorType newZ)
@@ -226,14 +193,14 @@ Image::ColorType Image::minColor(unsigned x, unsigned y, unsigned w, unsigned h)
 }
 */
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
+void Image::insertAt(quint32 x, quint32 y, quint32 z, const Image &other)
 {
 	if ((x + other.getWidth() > _width) or (y + other.getHeight() > _height))
 		THROW(ImageException, "images overlap");
 
-	for (unsigned other_y = 0; other_y < other.getHeight(); other_y++)
+	for (quint32 other_y = 0; other_y < other.getHeight(); other_y++)
 	{
-		for (unsigned other_x = 0; other_x < other.getWidth(); other_x++)
+		for (quint32 other_x = 0; other_x < other.getWidth(); other_x++)
 		{
 			if (other.hasPixelAt(other_x, other_y))
 			{
@@ -245,7 +212,7 @@ void Image::insertAt(unsigned x, unsigned y, unsigned z, const Image &other)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-float Image::computeMinZDistance(unsigned current_x, unsigned current_y, const Image &bottom) const
+float Image::computeMinZDistanceAt(quint32 current_x, quint32 current_y, const Image &bottom) const
 {
 	if ((current_x + bottom.getWidth() > _width) or (current_y + bottom.getHeight() > _height))
 		THROW(ImageException, "images overlap");
@@ -253,13 +220,13 @@ float Image::computeMinZDistance(unsigned current_x, unsigned current_y, const I
 	//assert(other.minColor() > -1);
 
 	Image::ColorType min_z = INFINITY;
-	unsigned min_x = 0;
-	unsigned min_y = 0;
+	quint32 min_x = 0;
+	quint32 min_y = 0;
 
 	// TODO : use SSE
-	for (unsigned x = 0; x < bottom.getWidth(); x++)
+	for (quint32 x = 0; x < bottom.getWidth(); x++)
 	{
-		for (unsigned y = 0; y < bottom.getHeight(); y++)
+		for (quint32 y = 0; y < bottom.getHeight(); y++)
 		{
 			if (hasPixelAt(current_x + x, current_y + y) and bottom.hasPixelAt(x, y))
 			{
@@ -286,7 +253,7 @@ void Image::recalcMinMax()
 	_minColor = INFINITY;
 	_maxColor = -INFINITY;
 
-	for (unsigned i = 0; i < (_width * _height); i++)
+	for (quint32 i = 0; i < (_width * _height); i++)
 	{
 		if (_alpha[i])
 		{
@@ -313,9 +280,9 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	Image newImage(dilationValue * 2 + _width, dilationValue * 2 + _height);
 	unsigned dilation2 = dilationValue * dilationValue;
 
-	for (unsigned x = 0; x < _width; x++)
+	for (quint32 x = 0; x < _width; x++)
 	{
-		for (unsigned y = 0; y < _height; y++)
+		for (quint32 y = 0; y < _height; y++)
 		{			
 			if (hasPixelAt(x, y))
 			{
@@ -352,20 +319,6 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	_height = newImage._height;
 	_minColor = newImage._minColor;
 	_maxColor = newImage._maxColor;
-
-	/*
-	if (_minColor != 0)
-	{
-		for (unsigned i = 0; i < (_width * _height); i++)
-		{
-			_data[i] -= _minColor;
-		}
-
-		_maxColor -= _minColor;
-		_minColor = 0;
-	}
-	*/
-	//recalcMinMax();
 }
 
 
@@ -491,9 +444,9 @@ Image* Image::operator -(const ImageRegion& other)
 	Image* img = new Image(_width, _height);
 	size_t numPixels = _width * _height;
 	memcpy(img->_data, _data, numPixels * sizeof(_data[0]));
-	for (unsigned y = 0; y < _height; y++)
+	for (quint32 y = 0; y < _height; y++)
 	{
-		for (unsigned x = 0; x < _width; x++)
+		for (quint32 x = 0; x < _width; x++)
 		{
 			Image::ColorType color = other.at(x, y);
 			img->_minColor = std::min(img->_minColor, color);
@@ -506,14 +459,14 @@ Image* Image::operator -(const ImageRegion& other)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-ImageRegion	Image::select(unsigned x, unsigned y, unsigned width, unsigned height)
+ImageRegion	Image::select(quint32 x, quint32 y, quint32 width, quint32 height)
 {
 	assert(x < width and y < height and width <= _width and height <= _height);
 	return ImageRegion(this, x, y, width, height);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-ImageRegion::ImageRegion(const Image* parent, unsigned x, unsigned y, unsigned width, unsigned height) :
+ImageRegion::ImageRegion(const Image* parent, quint32 x, quint32 y, quint32 width, quint32 height) :
 	_parent(parent), _x(x), _y(y), _width(width), _height(height)
 {
 }
