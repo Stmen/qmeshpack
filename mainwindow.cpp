@@ -114,7 +114,7 @@ void MainWindow::saveScreenshot()
 
 	QString filename = QFileDialog::getSaveFileName(this,
 		tr("Save main window screenshot"), "",
-		tr("All supported files (*.png *.jpg);; PNG (*.png);; JPG (*.jpg)");
+		tr("All supported files (*.png *.jpg);; PNG (*.png);; JPG (*.jpg)"));
 
 	if (filename.isEmpty())
 		return;
