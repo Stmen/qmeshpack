@@ -10,28 +10,22 @@ struct Node
 	Node(QString filename, unsigned dilation = 10);
 	~Node();
 
-	void rebuildTop(); /// rebuilds the top image.
-	void rebuildBottom(); /// rebuilds the bottom image
+	void rebuildImages(); /// rebuilds the top image.
 
 	const Mesh*		getMesh() const { return _mesh; }
-	unsigned		getSamplesPerPixel() const { return _samplesPerPixel; }
 	const Image*	getTop() const { return _top; }
 	const Image*	getBottom() const { return _bottom; }
 	void			scaleMesh(const QVector3D factor);
 	void			translateMesh(const QVector3D offset);
     void			setPos(QVector3D pos) { _pos = pos; }
     QVector3D		getPos() const { return _pos; }
-    //void			setPos(QVector3D pos) { _transform.setColumn(3, QVector4D(pos, 1.)); }
-    //QVector3D		getPos() const { return _transform.column(3).toVector3D(); }
 	unsigned		getDilationValue() const  { return _dilation; }
 
 private:
 
 	Mesh*		_mesh;
-	unsigned	_samplesPerPixel;
 	Image*		_top;
 	Image*		_bottom;
 	unsigned	_dilation;
-    //QMatrix4x4	_transform;
     QVector3D   _pos;
 };

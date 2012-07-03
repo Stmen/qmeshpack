@@ -18,8 +18,9 @@ Image::Image(quint32 width, quint32 height) :
 	if (width == 0 or height == 0)
 		THROW(ImageException, "bad geometry");
 
-	_alpha.resize(width * height, false);
     _data = new ColorType[width * height];
+	_alpha = new unsigned char[width * height];
+	memset(_alpha, 0, width * height);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -38,9 +39,10 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue) :
 						QString::number(geometry.x()), QString::number(geometry.y()), QString::number(geometry.z())));
 	}
 
-	_alpha.resize(_width * _height, false);
-	_data = new ColorType[_width * _height];
-
+	size_t numPixels = _width * _height;
+	_data = new ColorType[numPixels];
+	_alpha = new unsigned char[numPixels];
+	memset(_alpha, 0, numPixels);
 
     switch (mode)
     {
@@ -77,12 +79,13 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue) :
 Image::~Image()
 {
 	delete [] _data;
+	delete [] _alpha;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Image::clear()
-{
-	_alpha.assign(_width * _height, false);
+{	
+	memset(_alpha, 0, _height * _width);
 	_minColor = INFINITY;
 	_maxColor = -INFINITY;
 }
@@ -91,13 +94,11 @@ void Image::clear()
 void Image::setAllPixelsTo(ColorType value)
 {
 	_maxColor = _minColor = value;
-	_alpha.assign(_width * _height, true);
-}
+	size_t numPixels = _height * _width;
+	for (unsigned i = 0; i < numPixels; i++)
+		_data[i] = value;
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-bool Image::pixelIsInside(int x, int y)
-{
-	return x >= 0 and x < (int)_width and y >= 0 and y < (int)_height;
+	memset(_alpha, 1, numPixels);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +107,7 @@ void Image::setPixel(quint32 x, quint32 y, ColorType color)
 	assert(x < _width and y < _height);
 	quint32 idx = y * _width + x;
 	_data[idx] = color;
-	_alpha[idx] = true;
+	_alpha[idx] = 1;
 	_minColor = std::min(_minColor, color);
 	_maxColor = std::max(_maxColor, color);
 }
@@ -212,25 +213,24 @@ void Image::insertAt(quint32 x, quint32 y, quint32 z, const Image &other)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-float Image::computeMinZDistanceAt(quint32 current_x, quint32 current_y, const Image &bottom) const
+float Image::computeMinZDistanceAt(quint32 current_x, quint32 current_y, const Image* bottom) const
 {
-	if ((current_x + bottom.getWidth() > _width) or (current_y + bottom.getHeight() > _height))
+	if ((current_x + bottom->getWidth() > _width) or (current_y + bottom->getHeight() > _height))
 		THROW(ImageException, "images overlap");
-
-	//assert(other.minColor() > -1);
 
 	Image::ColorType min_z = INFINITY;
 	quint32 min_x = 0;
 	quint32 min_y = 0;
 
 	// TODO : use SSE
-	for (quint32 x = 0; x < bottom.getWidth(); x++)
+	for (quint32 y = 0; y < bottom->getHeight(); y++)
 	{
-		for (quint32 y = 0; y < bottom.getHeight(); y++)
+		for (quint32 x = 0; x < bottom->getWidth(); x++)
 		{
-			if (hasPixelAt(current_x + x, current_y + y) and bottom.hasPixelAt(x, y))
+			//if (hasPixelAt(current_x + x, current_y + y) and // base image has pixels everywhere
+			if(bottom->hasPixelAt(x, y))
 			{
-				Image::ColorType dist = bottom.at(x, y) - at(current_x + x, current_y + y);
+				Image::ColorType dist = bottom->at(x, y) - at(current_x + x, current_y + y);
 				if (dist < min_z)
 				{
 					min_z = dist;
@@ -241,10 +241,8 @@ float Image::computeMinZDistanceAt(quint32 current_x, quint32 current_y, const I
 		}
 	}
 
-	if (min_z == INFINITY)
-		THROW(ImageException, "images don't overlap anywhere");
-
-	return bottom.at(min_x, min_y) - min_z;
+	assert(min_z != INFINITY && "impossible since at least base image has minimum height everywhere." );
+	return bottom->at(min_x, min_y) - min_z;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -314,7 +312,7 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	}
 
 	std::swap(_data, newImage._data);
-	_alpha = std::vector<bool>(newImage._alpha);
+	std::swap(_alpha, newImage._alpha);
 	_width = newImage._width;
 	_height = newImage._height;
 	_minColor = newImage._minColor;
@@ -444,6 +442,8 @@ Image* Image::operator -(const ImageRegion& other)
 	Image* img = new Image(_width, _height);
 	size_t numPixels = _width * _height;
 	memcpy(img->_data, _data, numPixels * sizeof(_data[0]));
+	memcpy(img->_alpha, _alpha, numPixels * sizeof(_alpha[0]));
+
 	for (quint32 y = 0; y < _height; y++)
 	{
 		for (quint32 x = 0; x < _width; x++)

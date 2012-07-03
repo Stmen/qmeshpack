@@ -1,7 +1,8 @@
 #pragma once
 #include <QThread>
 #include <QVariant>
-#include "MeshFilesModel.h"
+#include <QtConcurrentMap>
+#include "NodeModel.h"
 
 class WorkerThread : public QThread
 {
@@ -34,22 +35,18 @@ signals:
 
 public slots:
 
-	void shouldStop()
-	{
-		_shouldStop = true;
-		#pragma omp flush (_shouldStop)
-	}
+	void shouldStop();
 
 private:
 
 	void	computePositions();
-	void	computePositions2();
 	void	saveNodeList();
 	void	loadNodeList();
 	bool	nodeFits(const Node* node) const;
 
+	QFuture<void>		_future;
 	NodeModel&			_nodes;
-	bool				_shouldStop;
+	volatile bool		_shouldStop;
 	QVariant			_args;
 	quint64				_lastProcessingMSecs;
 };

@@ -1,58 +1,52 @@
 #include "Node.h"
 #include <memory>
+#include <QtConcurrentRun>
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-Node::Node(QString filename, unsigned dilation)	: _dilation(dilation)
+Node::Node(QString filename, unsigned dilation)	:
+	_top(0),
+	_bottom(0),
+	_dilation(dilation)
 {
     _mesh = new Mesh(filename.toUtf8().constData());
 	auto_ptr<Mesh> mesh_guard(_mesh);
-
-	//pragma omp parallel
-	{
-		_top = new Image(*_mesh, Image::Top, dilation);
-		_bottom = new Image(*_mesh, Image::Bottom, dilation);
-	}
-
+	rebuildImages();
 	mesh_guard.release();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Node::~Node()
 {	
-	delete _bottom;
-	delete _top;
 	delete _mesh;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void Node::rebuildTop()
-{
 	delete _top;
-	_top = 0; // in case destructor is called an top gets deleted
-	_top = new Image(*_mesh, Image::Top, _samplesPerPixel);
+	delete _bottom;		
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void Node::rebuildBottom()
+void Node::rebuildImages()
 {
-	delete _bottom;
-	_bottom = 0; // in case destructor is called an bottom gets deleted
-	_bottom = new Image(*_mesh, Image::Bottom, _samplesPerPixel);
+	QFuture<Image*> futureTop =  QtConcurrent::run([this](){return new Image(*_mesh, Image::Top, _dilation);});
+	QFuture<Image*> futureBottom =  QtConcurrent::run([this](){return new Image(*_mesh, Image::Bottom, _dilation);});
+	if (_top)
+	{
+		delete _top;
+		delete _bottom;
+	}
+	_top = futureTop.result();
+	_bottom = futureBottom.result();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Node::scaleMesh(QVector3D factor)
 {
 	_mesh->scale(factor);
-	rebuildTop();
-	rebuildBottom();
+	rebuildImages();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Node::translateMesh(QVector3D offset)
 {
 	_mesh->translate(offset);
-	rebuildTop();
-	rebuildBottom();
+	rebuildImages();
 }
