@@ -17,7 +17,7 @@ class Mesh
 public:
 
 	Mesh(const Mesh& other); /// copy constructor
-	Mesh(const char* off_filename); /// OFF mesh constructor.
+    Mesh(const char* off_filename); /// OFF mesh constructor.
     ~Mesh();
 	void		add(const Mesh& other, const QVector3D offset); /// accumulation of meshes.
 	QVector3D	getMax() const { return _max; }
@@ -33,10 +33,10 @@ public:
 	void		setName(QString name) { _name = name; }
 	QString		getFilename() const { return _filename; }
 	void		recalcMinMax(); /// reexamines all vertices and determines new minimum and maximum values.
-	void		draw(bool drawAABB = true) const;
+    void		draw(bool use_lighting) const;
 	void		buildNormals();
 	void		save(QString filename);
-
+    bool        hasNormals() const { return _normals; }
 
     /// this class is used to iterate over the Triangles of a Mesh.
     class Iterator : public ::Iterator<Triangle>

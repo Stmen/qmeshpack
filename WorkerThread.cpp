@@ -1,4 +1,3 @@
-#include "WorkerThread.h"
 #include <QAtomicInt>
 #include <QDateTime>
 #include <QtConcurrentMap>
@@ -6,28 +5,18 @@
 #include <cassert>
 #include <functional>
 #include <QStringList>
+#include <QSettings>
 #include <stdexcept>
 #include <cstring>
+#include <vector>
+#include "WorkerThread.h"
 #include "config.h"
 
-//std::iterator_traits
-/*
-template <>
-struct std::iterator_traits<struct RangeIterator>
-{
-  //typedef random_access_iterator_tag  iterator_category;
-  typedef std::bidirectional_iterator_tag  iterator_category;
-  typedef quint64	value_type;
-  typedef qint64	difference_type;
-  typedef quint64*	pointer;
-  typedef quint64&	reference;
-};
-*/
-// */
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 	QThread(parent), _task(ComputePositions), _nodes(nodes)
 {
+    connect(this, SIGNAL(nodePositionModified(uint)), &nodes, SLOT(nodePositionChanged(uint)), Qt::QueuedConnection);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -43,15 +32,15 @@ void WorkerThread::saveNodeList()
 	emit reportProgressMax(_nodes.numNodes());
 
 	const Node* node = _nodes.getNode(0);
-	emit report(QString("processing mesh \"%1\"").arg(node->getMesh()->getName()), 0);
-	Mesh aggregate(*node->getMesh());
+    emit report(QString("processing mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+    Mesh aggregate(*node->getMesh());
 
 	for (unsigned i = 1; i < _nodes.numNodes(); i++)
 	{
 		emit reportProgress(i);
 		node = _nodes.getNode(i);
-		emit report(tr("processing mesh \"%1\"").arg(node->getMesh()->getName()), 0);
-		aggregate.add(*node->getMesh(), node->getPos());
+        emit report(tr("processing mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+        aggregate.add(*node->getMesh(), node->getPos());
 		if (_shouldStop)
 		{
 			emit report(tr("saving aborted"), 1);
@@ -64,12 +53,20 @@ void WorkerThread::saveNodeList()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::loadNodeList()
 {
-	QStringList filenames = _args.toStringList();
-	if (filenames.isEmpty())
+    QStringList qfilenames = _args.toStringList();
+    if (qfilenames.isEmpty())
 	{
 		report(tr("no files given"), 2);
 		return;
 	}
+
+    QSettings settings(APP_VENDOR, APP_NAME);
+    bool build_normals = settings.value("use_lighting", true).toBool();
+
+    // QStringList is not thread safe even for access
+    std::vector<QString> filenames;
+    for (long i = 0; i < qfilenames.size(); i++)
+        filenames.push_back(qfilenames[i]);
 
 	emit reportProgressMax(filenames.size());
 	QAtomicInt progress_atom(0);
@@ -80,6 +77,8 @@ void WorkerThread::loadNodeList()
 	{
 		QStringList slist =  filenames[i].split(';');
 		Node* node = new Node(slist[0].toUtf8().constData(), _nodes.getDefaultDilationValue());
+        if (build_normals)
+            node->getMesh()->buildNormals();
 		if (slist.size() == 4)
 			node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
 
@@ -105,11 +104,17 @@ void WorkerThread::loadNodeList()
 			}
 
 			QStringList slist =  filenames[i].split(';');
+            assert(not slist.isEmpty());
+
 			Node* node = new Node(slist[0].toUtf8().constData(), _nodes.getDefaultDilationValue());
+            if (build_normals)
+                node->getMesh()->buildNormals();
+
 			if (slist.size() == 4)
 				node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
 
 			emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+            emit report(tr("loaded %1").arg(node->getMesh()->getName()), 0);
 #pragma omp critical
 			_nodes.addNode(node);
 		}
@@ -120,6 +125,8 @@ void WorkerThread::loadNodeList()
 		{
 			QStringList slist =  str.split(';');
 			Node* node = new Node(slist[0].toUtf8().constData(), _nodes.getDefaultDilationValue());
+            if (build_normals)
+                node->getMesh()->buildNormals();
 			if (slist.size() == 4)
 				node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
 
@@ -200,8 +207,7 @@ void WorkerThread::shouldStop()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::computePositions()
 {
-	omp_set_num_threads(QThread::idealThreadCount());
-	setPriority(LowPriority);
+    omp_set_num_threads(QThread::idealThreadCount());
 
 	{
 		size_t max_progress = 0;
@@ -209,7 +215,7 @@ void WorkerThread::computePositions()
 		{
 			Node* node = _nodes.getNode(i);
 			node->setPos(QVector3D(0., 0., 0.));
-			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
+            QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 			max_progress += max.x() * max.y();
 		}
 
@@ -223,7 +229,7 @@ void WorkerThread::computePositions()
 	for (size_t i = 0; i < _nodes.numNodes(); i++)
 	{
 		Node* node = _nodes.getNode(i);
-		emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+        emit report(tr("processing Mesh ") + node->getMesh()->getName(), 0);
 
 		Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
@@ -231,7 +237,7 @@ void WorkerThread::computePositions()
 
 		if (not nodeFits(node))
 		{
-			emit report(QString("mesh \"%1\" does not fit at all.").arg(node->getMesh()->getName()), 2);
+            emit report(QString("mesh ") + node->getMesh()->getName() + tr(" does not fit at all."), 2);
 			break;
 		}
 
@@ -290,19 +296,19 @@ void WorkerThread::computePositions()
 		assert(best_y + node->getTop()->getHeight() <= base.getHeight());
 
 
-		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
+        QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
 				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
 
-		if ((newPos + node->getMesh()->getGeometry()).z() > _nodes.getGeometry().z())
+        if ((newPos + node->getMesh()->getGeometry()).z() > _nodes.getGeometry().z())
 		{
-			emit report(QString("mesh \"%1\" does not fit.").arg(node->getMesh()->getName()), 2);
+            emit report(tr("mesh ") + node->getMesh()->getName() + tr(" does not fit."), 2);
 			break;
 		}
 
 		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
-
 		node->setPos(newPos);
-		_nodes.nodePositionChanged(i);
+        #pragma omp taskyield
+        emit nodePositionModified(i);
 	}
 	#pragma omp flush
 }
@@ -312,7 +318,7 @@ void WorkerThread::computePositions()
 void WorkerThread::shouldStop()
 {
 	_shouldStop = true;
-	_future.cancel();
+	_future.cancel();   
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -320,12 +326,12 @@ void WorkerThread::computePositions()
 {
 	{
 		size_t max_progress = 0;
-		for (unsigned i = 0; i < _nodes.numNodes(); i++)
+        for (size_t i = 0; i < _nodes.numNodes(); i++)
 		{
 			Node* node = _nodes.getNode(i);
 			node->setPos(QVector3D(0., 0., 0.));
 			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
-			max_progress += max.x() * max.y();
+			max_progress += max.x() * max.y();            
 		}
 
 		emit reportProgressMax(max_progress);
@@ -338,7 +344,7 @@ void WorkerThread::computePositions()
 	for (size_t i = 0; i < _nodes.numNodes(); i++)
 	{
 		Node* node = _nodes.getNode(i);
-		emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+        //emit report(QString("processing Mesh \"%1\"").arg(node->getMesh()->getName()), 0);
 
 		Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
@@ -355,7 +361,6 @@ void WorkerThread::computePositions()
 
 		struct xyz_t { quint32 x, y; Image::ColorType z; };
 
-
 		std::function<xyz_t (quint64)> mapComputeZ =
 			[this, &base, &progress_atom, &node](quint64 coord)
 			{
@@ -369,7 +374,7 @@ void WorkerThread::computePositions()
 				emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
 				return out;
 			};
-\
+
 		std::function<void (int, xyz_t)> reduceBest = [&best_x, &best_y, &best_z](int a, xyz_t xyz)
 		{
 			(void)a;
@@ -421,7 +426,7 @@ void WorkerThread::computePositions()
 		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
 
 		node->setPos(newPos);
-		_nodes.nodePositionChanged(i);
+        emit nodePositionModified(i);
 	}
 }
 #endif

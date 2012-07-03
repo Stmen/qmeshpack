@@ -54,7 +54,7 @@ public slots:
 private:
 
 	NodeModel*		_modelMeshFiles;
-	GLView*			_boxView;
+    GLView*			_viewBox;
 	QTreeView*      _viewMeshFiles;
 	ModelView*		_viewModel;
 	QProgressBar*	_progressWidget;
@@ -73,7 +73,8 @@ private:
 	QAction*		_actShowResults;
 	QAction*		_actSaveScreenshot;
 	QAction*		_actSaveResults;
-	QAction*		_actDoScaleImages;
+    QAction*		_actToggleScaleImages;
+    QAction*		_actToggleUseLighting;
 	QAction*		_actSetConversionFactor;
 	QAction*		_actSetDefaultDilationValue;
 
@@ -97,4 +98,5 @@ private slots:
 	void removeCurrentNode();
 	void transformCurrentMesh();
 	void scaleCurrentMesh();
+    void setLighting(bool lighting_enable);
 };

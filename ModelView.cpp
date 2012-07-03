@@ -1,8 +1,9 @@
-#include "ModelView.h"
 #include <QGridLayout>
+#include <QSettings>
+#include "ModelView.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-ModelView::ModelView(QWidget *parent) :
+ModelView::ModelView(bool use_lighting, QWidget *parent) :
 	QSplitter(parent)
 {	
 
@@ -23,7 +24,7 @@ ModelView::ModelView(QWidget *parent) :
 	splitter->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
 	addWidget(splitter);
 
-	_glView = new GLView();
+    _glView = new GLView(use_lighting, this);
 	addWidget(_glView);
 
 	setOrientation(Qt::Horizontal);
@@ -47,4 +48,7 @@ void ModelView::setScaleImages(bool doScale)
 {
 	_labelTop->setScaledContents(doScale);
 	_labelBottom->setScaledContents(doScale);
+
+    QSettings settings(APP_VENDOR, APP_NAME);
+    settings.setValue("scale_images", doScale);
 }

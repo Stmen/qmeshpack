@@ -56,7 +56,7 @@ MainWindow::MainWindow() :
 	QMainWindow(),
 	_stack(new QStackedWidget(this))
 {
-	QSettings settings("Konstantin", APP_NAME);
+    QSettings settings(APP_VENDOR, APP_NAME);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
 	_conversionFactor = qvariant_cast<float>(settings.value("conversionFactor", 1.));
@@ -77,7 +77,7 @@ MainWindow::MainWindow() :
 	// creating Mesh Packer	
 	_threadWorker = new WorkerThread(this, *_modelMeshFiles);
 	connect(_threadWorker, SIGNAL(processingDone()), this, SLOT(processNodesDone()), Qt::QueuedConnection);
-	connect(_threadWorker, SIGNAL(report(QString, unsigned)), this, SLOT(consolePrint(QString, unsigned)), Qt::QueuedConnection);
+	connect(_threadWorker, SIGNAL(report(QString, unsigned)), this, SLOT(consolePrint(QString, unsigned)), Qt::QueuedConnection);    
 
 	// create console
 	QDockWidget* dockWidget = new QDockWidget(tr("Console"), this);
@@ -90,15 +90,13 @@ MainWindow::MainWindow() :
 	createActions();
 	createMenusAndToolbars(); // menus depend on existing actions and some widgets like _progress*
 
-	bool doScaleImages = qvariant_cast<bool>(settings.value("scaleImages"));
-	_viewModel->setScaleImages(doScaleImages);
-	_actDoScaleImages->setChecked(doScaleImages);
-
 	connect(_modelMeshFiles, SIGNAL(geometryChanged()), this, SLOT(updateWindowTitle()));
 	connect(_modelMeshFiles, SIGNAL(numNodesChanged()), this, SLOT(updateWindowTitle()));
+
+
 	updateWindowTitle();
 
-	connect(_threadWorker, SIGNAL(reportProgressMax(int)), _progressWidget, SLOT(setMaximum(int)), Qt::QueuedConnection);
+    connect(_threadWorker, SIGNAL(reportProgressMax(int)), _progressWidget, SLOT(setMaximum(int)), Qt::QueuedConnection);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,11 +137,9 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
 	QSettings settings(APP_VENDOR, APP_NAME);
 	settings.setValue("geometry", saveGeometry());
-	settings.setValue("windowState", saveState());
-	settings.setValue("box_geometry", _modelMeshFiles->getGeometry());
+	settings.setValue("windowState", saveState());	
 	settings.setValue("conversionFactor", _conversionFactor);
-	settings.setValue("dilation", _modelMeshFiles->getDefaultDilationValue());
-	settings.setValue("scaleImages", _viewModel->areImagesScaled());
+	settings.setValue("dilation", _modelMeshFiles->getDefaultDilationValue());	
 	QMainWindow::closeEvent(event);
 }
 
@@ -170,11 +166,12 @@ void MainWindow::createMeshList()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void MainWindow::createActions()
 {
+    QSettings settings(APP_VENDOR, APP_NAME);
 	QStyle* style = QApplication::style();
 
 	_actStop = new QAction(QIcon(":/trolltech/styles/commonstyle/images/stop-32.png"), tr("&Stop"), this);
 	_actStop->setEnabled(false);
-	connect(_actStop, SIGNAL(triggered()), _threadWorker, SLOT(shouldStop()));
+    connect(_actStop, SIGNAL(triggered()), _threadWorker, SLOT(shouldStop()), Qt::QueuedConnection);
 
 	_actExit = new QAction(QIcon(), tr("E&xit"), this);
 	_actExit->setShortcuts(QKeySequence::Close);
@@ -194,7 +191,7 @@ void MainWindow::createActions()
 	_actClear = new QAction(QIcon(":/trolltech/styles/commonstyle/images/standardbutton-clear-32.png"), tr("&Clear"), this);
 	_actClear->setStatusTip(tr("Removes all meshes."));
 	connect(_actClear, SIGNAL(triggered()), _modelMeshFiles, SLOT(clear()));
-	connect(_actClear,  SIGNAL(triggered()), _boxView, SLOT(updateGL()));
+    connect(_actClear,  SIGNAL(triggered()), _viewBox, SLOT(updateGL()));
 
 	_actSetBoxGeometry = new QAction(QIcon(), tr("Set &geometry"), this);
 	_actSetBoxGeometry->setStatusTip(tr("Sets the bounding box geometry for the target space."));
@@ -207,6 +204,7 @@ void MainWindow::createActions()
 	_actSetDefaultDilationValue = new QAction(QIcon(), tr("Set default &dilation value"), this);
 	_actSetDefaultDilationValue->setStatusTip(tr("Sets the default dilation value."));
 	connect(_actSetDefaultDilationValue, SIGNAL(triggered()), this, SLOT(dialogSetDefaultDilation()));
+
 	_actShowResults = new QAction(QIcon(":/trolltech/styles/commonstyle/images/viewdetailed-32.png"), tr("Show &results"), this);
 	_actShowResults->setStatusTip(tr("Shows results in the main window"));
 	connect(_actShowResults, SIGNAL(triggered()), this, SLOT(mainShowResults()));
@@ -233,11 +231,21 @@ void MainWindow::createActions()
 	_actMeshScale->setStatusTip(tr("Scale this mesh"));
 	connect(_actMeshScale, SIGNAL(triggered()), this, SLOT(scaleCurrentMesh()));
 
-	_actDoScaleImages = new QAction(QIcon(), tr("Scale &images"), this);
-	_actDoScaleImages->setStatusTip(tr("Scale images"));
-	_actDoScaleImages->setCheckable(true);
-	connect(_actDoScaleImages, SIGNAL(toggled(bool)), _viewModel, SLOT(setScaleImages(bool)));
+    _actToggleScaleImages = new QAction(QIcon(), tr("Scale &images"), this);
+    _actToggleScaleImages->setStatusTip(tr("Scale images"));
+    _actToggleScaleImages->setCheckable(true);
+    connect(_actToggleScaleImages, SIGNAL(toggled(bool)), _viewModel, SLOT(setScaleImages(bool)));
+    bool doScaleImages = settings.value("scale_images", false).toBool();
+    //_viewModel->setScaleImages(doScaleImages);
+    _actToggleScaleImages->setChecked(doScaleImages);
 
+    _actToggleUseLighting = new QAction(QIcon(), tr("Use &lighting"), this);
+    _actToggleUseLighting->setStatusTip(tr("Uses lighting"));
+    _actToggleUseLighting->setCheckable(true);
+    connect(_actToggleUseLighting, SIGNAL(toggled(bool)), this, SLOT(setLighting(bool)));
+    bool doUseLighting = settings.value("use_lighting", true).toBool();
+    //setLighting(doUseLighting);
+    _actToggleUseLighting->setChecked(doUseLighting);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +268,8 @@ void MainWindow::createMenusAndToolbars()
 	menu->insertAction(0, _actSetBoxGeometry);
 	menu->insertAction(0, _actSetConversionFactor);
 	menu->insertAction(0, _actSetDefaultDilationValue);
-	menu->insertAction(0, _actDoScaleImages);
+    menu->insertAction(0, _actToggleScaleImages);
+    menu->insertAction(0, _actToggleUseLighting);
 	menuBar()->addMenu(menu);
 
 	menu = new QMenu(tr("&Help"));
@@ -317,18 +326,20 @@ void MainWindow::createStack()
 	label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 	_stack->addWidget(label);
 
-	_boxView = new GLView(_modelMeshFiles);
-	connect(_threadWorker, SIGNAL(processingDone()), _boxView, SLOT(updateGL()));
-	connect(_modelMeshFiles, SIGNAL(dataChanged(QModelIndex,QModelIndex)), _boxView, SLOT(updateGL()));
+    QSettings settings(APP_VENDOR, APP_NAME);
+    bool use_lighting = settings.value("use_lighting", true).toBool();
+    _viewBox = new GLView(_modelMeshFiles, use_lighting);
+    _stack->addWidget(_viewBox);
+    connect(_threadWorker, SIGNAL(processingDone()), _viewBox, SLOT(update()), Qt::QueuedConnection);
+    connect(_modelMeshFiles, SIGNAL(dataChanged(QModelIndex,QModelIndex)), _viewBox, SLOT(update()), Qt::QueuedConnection);
 
-	_stack->addWidget(_boxView);
-	_viewModel = new ModelView(this);
+    _viewModel = new ModelView (use_lighting, this);
 	_stack->addWidget(_viewModel);
 
 	_progressWidget = new QProgressBar();
 	_progressWidget->setEnabled(false);
 
-	connect(_threadWorker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)));
+    connect(_threadWorker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)), Qt::QueuedConnection);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -377,7 +388,7 @@ void MainWindow::removeCurrentNode()
 		_viewMeshFiles->clearSelection();
 		_stack->setCurrentIndex(VIEW_RESULTS);
 		unsigned idx = _currMeshIndex.row();
-		consolePrint(tr("removing node \"%1\"").arg(_modelMeshFiles->getNode(idx)->getMesh()->getName()), 0);
+        consolePrint(tr("removing node \"%1\"").arg(_modelMeshFiles->getNode(idx)->getMesh()->getName()), 0);
 		_modelMeshFiles->removeRows(idx, 1, QModelIndex());
 	}
 }
@@ -440,6 +451,8 @@ void MainWindow::dialogSetBoxGeometry()
 			QString resultStr = QString("(%1 %2 %3)").arg(result.x()).arg(result.y()).arg(result.z());
 			consolePrint(tr("Setting box geometry to ") + resultStr + " application units.");
 			_modelMeshFiles->setGeometry(result);
+            QSettings settings(APP_VENDOR, APP_NAME);
+            settings.setValue("box_geometry", result);
 		}
 		else
 			consolePrint(tr("Bad input"), 2);
@@ -592,7 +605,7 @@ void MainWindow::dialogSaveResults()
 		for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
 		{
 			Node* node = _modelMeshFiles->getNode(i);
-			out << node->getMesh()->getFilename() << ';'
+            out << node->getMesh()->getFilename() << ';'
 				<< node->getPos().x() << ';' << node->getPos().y() << ';' << node->getPos().z() << '\n';
 		}
 		file.close();
@@ -614,7 +627,7 @@ void MainWindow::processNodes()
 		// sanity checks.
 		for (unsigned i = 0; i < _modelMeshFiles->numNodes(); i++)
 		{
-			const Mesh* mesh = _modelMeshFiles->getNode(i)->getMesh();
+            const Mesh* mesh = _modelMeshFiles->getNode(i)->getMesh();
 			QVector3D meshGeometry = mesh->getMax() - mesh->getMin();
 
 			if (	meshGeometry.x() > boxGeometry.x() or
@@ -703,4 +716,19 @@ void MainWindow::aboutThisApp()
 				  QString("Application version: %1\n").arg(ver) +
 				  QString(__DATE__) + QString(" Hamburg");
 	QMessageBox::information(this, tr(APP_NAME), msg);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void MainWindow::setLighting(bool lighting_enable)
+{
+    if (lighting_enable)
+        _modelMeshFiles->computeMeshNormals();
+
+    _viewBox->setUseLighting(lighting_enable);
+    _viewModel->getGLView()->setUseLighting(lighting_enable);
+
+    QSettings settings(APP_VENDOR, APP_NAME);
+    settings.setValue("use_lighting", lighting_enable);
+    _viewBox->update();
+    _viewModel->getGLView()->update();
 }

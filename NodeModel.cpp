@@ -1,3 +1,5 @@
+#include <QtConcurrentMap>
+#include <functional>
 #include "NodeModel.h"
 #include "util.h"
 
@@ -73,11 +75,11 @@ QVariant NodeModel::data(const QModelIndex& index, int role) const
 				{
 					default:
 					case 0:
-						return node->getMesh()->getName();
+                        return node->getMesh()->getName();
 					case 1:
 						return toString(node->getPos());
 					case 2:
-						return toString(node->getMesh()->getGeometry());
+                        return toString(node->getMesh()->getGeometry());
 					case 3:
 						return node->getDilationValue();
 				}
@@ -181,8 +183,8 @@ void NodeModel::nodePositionChanged(unsigned i)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 static bool greaterVolume(Node* n1, Node* n2)
 {
-	QVector3D g1 = n1->getMesh()->getGeometry();
-	QVector3D g2 = n2->getMesh()->getGeometry();
+    QVector3D g1 = n1->getMesh()->getGeometry();
+    QVector3D g2 = n2->getMesh()->getGeometry();
 
     return (g1.x() * g1.y() * g1.z()) > (g2.x() * g2.y() * g2.z());
 }
@@ -195,4 +197,18 @@ void NodeModel::sortByBBoxSize()
     std::sort(_nodes.begin(), _nodes.end(), greaterVolume);
 	//emit dataChanged(createIndex(0, 0), createIndex(_nodes.size() - 1, 0););
 	endResetModel();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void NodeModel::computeMeshNormals()
+{
+    std::function<void (Node* node)> mapBuildNormals =
+    [](Node* node)
+    {
+        Mesh* mesh = node->getMesh();
+        if (not mesh->hasNormals())
+            mesh->buildNormals();
+    };
+
+    QtConcurrent::blockingMap(_nodes.begin(), _nodes.end(), mapBuildNormals);
 }

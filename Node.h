@@ -12,7 +12,8 @@ struct Node
 
 	void rebuildImages(); /// rebuilds the top image.
 
-	const Mesh*		getMesh() const { return _mesh; }
+    const Mesh*     getMesh() const { return _mesh; }
+    Mesh*           getMesh() { return _mesh; }
 	const Image*	getTop() const { return _top; }
 	const Image*	getBottom() const { return _bottom; }
 	void			scaleMesh(const QVector3D factor);

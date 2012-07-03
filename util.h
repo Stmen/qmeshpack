@@ -184,7 +184,7 @@ struct DoubleRangeIterator : public  std::iterator<std::bidirectional_iterator_t
 		if (n < 0)
 			(*this)-= -n;
 
-		for (unsigned i = 0; i < n; ++i)
+        for (ptrdiff_t i = 0; i < n; ++i)
 			++(*this);
 	}
 
@@ -211,7 +211,7 @@ struct DoubleRangeIterator : public  std::iterator<std::bidirectional_iterator_t
 		if (n < 0)
 			(*this)+= -n;
 
-		for (unsigned i = 0; i < n; ++i)
+        for (ptrdiff_t i = 0; i < n; ++i)
 			--(*this);
 	}
 

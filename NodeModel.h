@@ -9,7 +9,7 @@ class NodeModel : public QAbstractItemModel
 
 public:
 
-	explicit NodeModel(QObject *parent, QVector3D geometry, unsigned defaultDilationValue);
+    explicit NodeModel(QObject *parent, QVector3D geometry, unsigned defaultDilationValue);
 	virtual ~NodeModel();
 
 	Qt::ItemFlags flags(const QModelIndex & index) const;
@@ -29,17 +29,17 @@ public:
 	void		sortByBBoxSize();
 	unsigned	getDefaultDilationValue() const { return _defaultDilationValue; }
 	void		setDefaultDilationValue(unsigned defaultDilationValue) { _defaultDilationValue = defaultDilationValue; }
+    void        computeMeshNormals();
 
 signals:
 	void		geometryChanged();
 	void		numNodesChanged();
-	//void		nodeAdded();
-	//void		nodeRemoved(unsigned idx);
+
 public slots:
 
 	Node*		addMesh(const char *filename);
 	void		addNode(Node* node);
-	void		nodePositionChanged(unsigned i);
+    void		nodePositionChanged(unsigned i);
 	void		clear();
 
 private:

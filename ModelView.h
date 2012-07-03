@@ -13,8 +13,9 @@ class ModelView : public QSplitter
 
 public:
 
-	explicit		ModelView(QWidget *parent = 0);
+    explicit		ModelView(bool use_lighting, QWidget *parent = NULL);
 	const GLView*	getGLView() const { return _glView; }
+    GLView*         getGLView() { return _glView; }
 
 signals:
 	

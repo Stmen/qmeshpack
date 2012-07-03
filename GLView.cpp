@@ -1,10 +1,11 @@
-#include "GLView.h"
-#include "config.h"
 #include <QDebug>
 #include <QFileDialog>
+#include <QSettings>
+#include "GLView.h"
+#include "config.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GLView::GLView(QWidget* parent) :
+GLView::GLView(bool use_lighting, QWidget* parent) :
 	QGLWidget(parent),
 	_nodes(0),
 	_mouseLast(0, 0),
@@ -12,17 +13,18 @@ GLView::GLView(QWidget* parent) :
 	_moveSensetivity(0.4),
 	_wheelSensitivity(0.6),
 	_drawPackBox(false),
-	_single(false)
+    _single(false),
+    _useLighting(use_lighting)
 {
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
 	_mouseLast = QPoint(0., 0.);
 	_cam.setToIdentity();
-	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
+	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));    
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GLView::GLView(const NodeModel* nodes, QWidget* parent) :
+GLView::GLView(NodeModel *nodes, bool use_lighting, QWidget *parent) :
 	QGLWidget(parent),	
 	_nodes(nodes),
 	_mouseLast(0, 0),
@@ -30,7 +32,8 @@ GLView::GLView(const NodeModel* nodes, QWidget* parent) :
 	_moveSensetivity(0.2),
 	_wheelSensitivity(0.6),
 	_drawPackBox(true),
-	_single(false)
+    _single(false),
+    _useLighting(use_lighting)
 {
 	setFocusPolicy(Qt::StrongFocus);
 	setAutoBufferSwap(false);
@@ -46,16 +49,18 @@ GLView::GLView(const NodeModel* nodes, QWidget* parent) :
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 GLView::~GLView()
 {
+    QSettings settings(APP_VENDOR, APP_NAME);
+    settings.setValue("use_lighting", _useLighting);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void GLView::setNode(const Node* node)
+void GLView::setNode(Node *node)
 {
 	_drawPackBox = false;
 	_single = true;
 	_node = node;
 	_cam.setToIdentity();
-	QVector3D geom = node->getMesh()->getGeometry();
+    QVector3D geom = node->getMesh()->getGeometry();
 	QVector3D pos = node->getPos() + QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 2);
     _cam.translate(pos);
 	_lightPos = QVector4D(pos, 1.);
@@ -78,8 +83,6 @@ void GLView::initializeGL()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glClearColor(59./256., 110. / 256., 165./256., 0.);
 
-
-#ifdef USE_LIGHTING
 	//glFrontFace(GL_CCW);
 	glEnable(GL_LIGHTING);
 	glEnable(GL_LIGHT0);
@@ -98,7 +101,7 @@ void GLView::initializeGL()
 
 	//GLfloat position[] = { -1.5f, 1.0f, -4.0f, 1.0f };
 	//glLightfv(GL_LIGHT0, GL_POSITION, (GLfloat*)&_lightPos);
-#endif
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -153,23 +156,28 @@ void GLView::paintGL()
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadMatrixd(_cam.inverted().constData());
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glEnableClientState(GL_VERTEX_ARRAY);
-#ifdef USE_LIGHTING
-	glEnableClientState(GL_NORMAL_ARRAY);
-	glEnable(GL_LIGHTING);
-	float ligtPos[4] = { (float)_cam.column(3).x(), (float)_cam.column(3).y(), (float)_cam.column(3).z(), 1 };
-	glLightfv(GL_LIGHT0, GL_POSITION, ligtPos);
-#endif
+    if (_useLighting)
+    {
+        glEnableClientState(GL_NORMAL_ARRAY);
+        glEnable(GL_LIGHTING);
+        float ligtPos[4] = { (float)_cam.column(3).x(), (float)_cam.column(3).y(), (float)_cam.column(3).z(), 1 };
+        glLightfv(GL_LIGHT0, GL_POSITION, ligtPos);
+    }
+    else
+    {
+        glDisableClientState(GL_NORMAL_ARRAY);
+        glDisable(GL_LIGHTING);
+        glColor3f(1., 0., 0.);
+    }
 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);	
-
-	glColor3f(1., 0., 0.);
 	if (_single)
 	{
 		QVector3D nodePos = _node->getPos();
 		glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
-		_node->getMesh()->draw(false);
+        _node->getMesh()->draw(_useLighting);
 	}
 	else
 	{
@@ -180,29 +188,31 @@ void GLView::paintGL()
 			QVector3D nodePos = node->getPos();
 
 			glPushMatrix();
-			min = vecmin(min, nodePos + node->getMesh()->getMin());
-			max = vecmax(max, nodePos + node->getMesh()->getMax());
+            min = vecmin(min, nodePos + node->getMesh()->getMin());
+            max = vecmax(max, nodePos + node->getMesh()->getMax());
 
 			glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
 
-			_nodes->getNode(i)->getMesh()->draw(false);
+            _nodes->getNode(i)->getMesh()->draw(_useLighting);
 			glPopMatrix();
 		}
 
+        if (_useLighting)
+            glDisable(GL_LIGHTING);
+
 		if (_drawPackBox)
 		{
-#ifdef USE_LIGHTING
-			glDisable(GL_LIGHTING);
-#endif
 			glColor3f(1., 1., 0.);			
 			drawAxisAlignedBox(QVector3D(0., 0., 0.), _nodes->getGeometry());			
 		}
 	}
 
 	glDisableClientState(GL_VERTEX_ARRAY);
-#ifdef USE_LIGHTING
-	glDisableClientState(GL_NORMAL_ARRAY);
-#endif
+
+    if (_useLighting)
+    {
+        glDisableClientState(GL_NORMAL_ARRAY);
+    }
 
 /* test triangle
 	glBegin(GL_TRIANGLES);
@@ -338,4 +348,10 @@ void GLView::wheelEvent(QWheelEvent *event)
 {
 	_cam.translate(0., 0., (float)event->delta() * _wheelSensitivity);
 	updateGL();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void GLView::setUseLighting(bool enable_lighting)
+{
+    _useLighting = enable_lighting;
 }
