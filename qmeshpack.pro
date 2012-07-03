@@ -1,5 +1,5 @@
 TEMPLATE = app
-VERSION = 0.1
+VERSION = 1.0.0xB4
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 QT += opengl
 CONFIG += gui qt thread exceptions

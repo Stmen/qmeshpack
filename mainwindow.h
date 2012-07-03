@@ -20,6 +20,7 @@
 #include <QToolBar>
 #include <QTextEdit>
 #include <QVariant>
+#include <functional>
 #include "WorkerThread.h"
 #include "ModelView.h"
 
@@ -85,6 +86,7 @@ private:
 	QAction*        _actMeshTranslate;
 	// for box geometry dialog
 	float			_conversionFactor;
+    std::function<void (void)> _execAfterWorkerFinished;
 
 	void createMeshList();
 	void createActions();
@@ -92,7 +94,7 @@ private:
 	void createStatusBar();
 	void createStack();
 
-	void startWorker(WorkerThread::Task task, QVariant arg = QVariant());
+    void startWorker(WorkerThread::Task task, QVariant arg = QVariant());
 private slots:
 
 	void removeCurrentNode();

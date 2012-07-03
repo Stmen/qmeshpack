@@ -14,16 +14,17 @@ public:
 	{
 		ComputePositions,
 		SaveMeshList,
-		LoadMeshList
+        LoadMeshList,
+        MakeNormals
 	} _task;
 
-	explicit WorkerThread(QObject *parent, NodeModel &nodes);
-	void	setNodeList(NodeModel& nodes);
-	void	setTask(Task task) { _task = task; }
-	void	setArgument(QVariant arg) { _args = arg; }
-	quint64	getLastProcessingMSecs() const { return _lastProcessingMSecs; }
+    explicit        WorkerThread(QObject *parent, NodeModel &nodes);
+    inline void     setTask(Task task) { _task = task; }
+    inline void     setArgument(QVariant arg) { _args = arg; }
+    inline quint64	getLastProcessingMSecs() const { return _lastProcessingMSecs; }
 
 protected:
+
 	void run();
 
 signals:
@@ -32,6 +33,7 @@ signals:
 	void reportProgress(int progress);
 	void processingDone();
 	void report(QString what, unsigned level);
+    void nodePositionModified(unsigned idx);
 
 public slots:
 
@@ -39,6 +41,7 @@ public slots:
 
 private:
 
+    void    makeNormals();
 	void	computePositions();
 	void	saveNodeList();
 	void	loadNodeList();

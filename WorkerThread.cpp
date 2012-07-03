@@ -20,6 +20,27 @@ WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void WorkerThread::makeNormals()
+{
+    emit reportProgressMax(_nodes.numNodes());
+
+    QAtomicInt progress_atom(0);
+    std::function<void (Node* node)> mapBuildNormals =
+    [this, &progress_atom](Node* node)
+    {
+        Mesh* mesh = node->getMesh();
+        if (not mesh->hasNormals())
+        {
+            emit report(QString("processing mesh \"%1\"").arg(mesh->getName()), 0);
+            mesh->buildNormals();
+        }
+        emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+    };
+
+    QtConcurrent::blockingMap(_nodes.begin(), _nodes.end(), mapBuildNormals);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::saveNodeList()
 {
 	QString filename = _args.toString();
@@ -167,6 +188,10 @@ void WorkerThread::run()
 					loadNodeList();
 				break;
 
+            case MakeNormals:
+                makeNormals();
+                break;
+
 			default:
 				assert(0 && "bad task was selected, this should never happen");
 				break;
@@ -209,8 +234,9 @@ void WorkerThread::computePositions()
 {
     omp_set_num_threads(QThread::idealThreadCount());
 
-	{
-		size_t max_progress = 0;
+	{	
+        #ifdef REPORT_FINE_PROGRESS
+        size_t max_progress = 0;
 		for (unsigned i = 0; i < _nodes.numNodes(); i++)
 		{
 			Node* node = _nodes.getNode(i);
@@ -218,8 +244,10 @@ void WorkerThread::computePositions()
             QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 			max_progress += max.x() * max.y();
 		}
-
-		emit reportProgressMax(max_progress);
+        emit reportProgressMax(max_progress);
+        #else
+        emit reportProgressMax(_nodes.numNodes());
+        #endif
 	}
 
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
@@ -262,7 +290,10 @@ void WorkerThread::computePositions()
 					}
 
 					Image::ColorType z = base.computeMinZDistanceAt(x, y, node->getBottom());
-					emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+
+                    #ifdef REPORT_FINE_PROGRESS
+                    emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+                    #endif
 
 					#pragma omp critical
 					{
@@ -292,6 +323,9 @@ void WorkerThread::computePositions()
 			}
 		}
 
+#ifndef REPORT_FINE_PROGRESS
+        emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+#endif
 		assert(best_x + node->getTop()->getWidth() <= base.getWidth());
 		assert(best_y + node->getTop()->getHeight() <= base.getHeight());
 
@@ -324,8 +358,9 @@ void WorkerThread::shouldStop()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::computePositions()
 {
-	{
-		size_t max_progress = 0;
+	{		
+        #ifdef REPORT_FINE_PROGRESS
+        size_t max_progress = 0;
         for (size_t i = 0; i < _nodes.numNodes(); i++)
 		{
 			Node* node = _nodes.getNode(i);
@@ -333,8 +368,10 @@ void WorkerThread::computePositions()
 			QVector3D max = _nodes.getGeometry() - node->getMesh()->getGeometry();
 			max_progress += max.x() * max.y();            
 		}
-
-		emit reportProgressMax(max_progress);
+        emit reportProgressMax(max_progress);
+        #else
+        emit reportProgressMax(_nodes.numNodes());
+        #endif
 	}
 
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
@@ -371,7 +408,9 @@ void WorkerThread::computePositions()
 				//((*istart) & 0xFFFFFFFFU) << " y: " << (((*istart) >> 32) & 0xFFFFFFFFU)
 				xyz_t out = { x, y, z};
 
-				emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+                #ifdef REPORT_FINE_PROGRESS
+                emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+                #endif
 				return out;
 			};
 
@@ -400,6 +439,9 @@ void WorkerThread::computePositions()
 				}
 			}
 		};
+#ifndef REPORT_FINE_PROGRESS
+        emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+#endif
 
 		DoubleRangeIterator istart(0, 0, 0, max_x, 0, max_y);
 		DoubleRangeIterator iend = istart.end();

@@ -56,6 +56,7 @@ MainWindow::MainWindow() :
 	QMainWindow(),
 	_stack(new QStackedWidget(this))
 {
+    _execAfterWorkerFinished = [](){};
     QSettings settings(APP_VENDOR, APP_NAME);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
@@ -550,6 +551,8 @@ void MainWindow::startWorker(WorkerThread::Task task, QVariant arg)
 	_actSetBoxGeometry->setEnabled(false);
 	_actClear->setEnabled(false);
 	_actStop->setEnabled(true);	
+    _actToggleUseLighting->setEnabled(false);
+
 	_threadWorker->setArgument(arg);
 	_threadWorker->setTask(task);
 	_progressWidget->setEnabled(true);
@@ -663,8 +666,10 @@ void MainWindow::processNodesDone()
 	_actSetBoxGeometry->setEnabled(true);
 	_actClear->setEnabled(true);
 	_actStop->setEnabled(false);
-
+    _actToggleUseLighting->setEnabled(true);
 	consolePrint(tr("processing done in %1 milliseconds.").arg(QString::number(_threadWorker->getLastProcessingMSecs())));
+    _execAfterWorkerFinished();
+    _execAfterWorkerFinished = [](){};
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -722,13 +727,28 @@ void MainWindow::aboutThisApp()
 void MainWindow::setLighting(bool lighting_enable)
 {
     if (lighting_enable)
-        _modelMeshFiles->computeMeshNormals();
+    {
+        _execAfterWorkerFinished = [this]()
+        {
+            _viewBox->setUseLighting(true);
+            _viewModel->getGLView()->setUseLighting(true);
 
-    _viewBox->setUseLighting(lighting_enable);
-    _viewModel->getGLView()->setUseLighting(lighting_enable);
+            QSettings settings(APP_VENDOR, APP_NAME);
+            settings.setValue("use_lighting", true);
+            _viewBox->update();
+            _viewModel->getGLView()->update();
+        };
+        startWorker(WorkerThread::MakeNormals);
+    }
+    else
+    {
+        _viewBox->setUseLighting(false);
+        _viewModel->getGLView()->setUseLighting(false);
 
-    QSettings settings(APP_VENDOR, APP_NAME);
-    settings.setValue("use_lighting", lighting_enable);
-    _viewBox->update();
-    _viewModel->getGLView()->update();
+        QSettings settings(APP_VENDOR, APP_NAME);
+        settings.setValue("use_lighting", false);
+        _viewBox->update();
+        _viewModel->getGLView()->update();
+    }
+
 }

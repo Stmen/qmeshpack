@@ -198,17 +198,3 @@ void NodeModel::sortByBBoxSize()
 	//emit dataChanged(createIndex(0, 0), createIndex(_nodes.size() - 1, 0););
 	endResetModel();
 }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void NodeModel::computeMeshNormals()
-{
-    std::function<void (Node* node)> mapBuildNormals =
-    [](Node* node)
-    {
-        Mesh* mesh = node->getMesh();
-        if (not mesh->hasNormals())
-            mesh->buildNormals();
-    };
-
-    QtConcurrent::blockingMap(_nodes.begin(), _nodes.end(), mapBuildNormals);
-}

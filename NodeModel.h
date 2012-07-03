@@ -41,6 +41,8 @@ public slots:
 	void		addNode(Node* node);
     void		nodePositionChanged(unsigned i);
 	void		clear();
+    std::vector<Node*>::iterator begin() { return _nodes.begin(); }
+    std::vector<Node*>::iterator end() { return _nodes.end(); }
 
 private:
 
