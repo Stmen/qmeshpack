@@ -157,43 +157,6 @@ bool Image::x_greater_y(ColorType imageZ, ColorType newZ)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-///
-/// calculates maximum color for a region inside this image.
-///
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-/*
-Image::ColorType Image::maxColor(unsigned x, unsigned y, unsigned w, unsigned h) const
-{
-	ColorType color = at(x, y);
-	for (unsigned j = 0; j < h; j++)
-	{
-		for (unsigned i = 0; i < w; i++)
-		{
-			color = std::max(color, at(x + i, y + j));
-		}
-	}
-	return color;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-///
-/// calculates minimum color for a region inside this image.
-///
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-Image::ColorType Image::minColor(unsigned x, unsigned y, unsigned w, unsigned h) const
-{
-	ColorType color = at(x, y);
-	for (unsigned j = 0; j < h; j++)
-	{
-		for (unsigned i = 0; i < w; i++)
-		{
-			color = std::min(color, at(x + i, y + j));
-		}
-	}
-	return color;
-}
-*/
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 void Image::insertAt(quint32 x, quint32 y, quint32 z, const Image &other)
 {
 	if ((x + other.getWidth() > _width) or (y + other.getHeight() > _height))
@@ -213,7 +176,7 @@ void Image::insertAt(quint32 x, quint32 y, quint32 z, const Image &other)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-float Image::computeMinZDistanceAt(quint32 current_x, quint32 current_y, const Image* bottom) const
+Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_y, const Image* bottom, ColorType threshold) const
 {
 	if ((current_x + bottom->getWidth() > _width) or (current_y + bottom->getHeight() > _height))
 		THROW(ImageException, "images overlap");
@@ -221,6 +184,7 @@ float Image::computeMinZDistanceAt(quint32 current_x, quint32 current_y, const I
 	Image::ColorType min_z = INFINITY;
 	quint32 min_x = 0;
 	quint32 min_y = 0;
+	bool early_rejection = false;
 
 	// TODO : use SSE
 	for (quint32 y = 0; y < bottom->getHeight(); y++)
@@ -242,7 +206,9 @@ float Image::computeMinZDistanceAt(quint32 current_x, quint32 current_y, const I
 	}
 
 	assert(min_z != INFINITY && "impossible since at least base image has minimum height everywhere." );
-	return bottom->at(min_x, min_y) - min_z;
+
+	offset_info info = {min_x, min_y, min_z, early_rejection};
+	return info;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

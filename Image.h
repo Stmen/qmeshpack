@@ -41,7 +41,16 @@ public:
 	//ColorType	minColor(unsigned x, unsigned y, unsigned w, unsigned h) const;
 	QImage			toQImage() const;
 	void			insertAt(quint32 x, quint32 y, quint32 z, const Image& other);
-	float			computeMinZDistanceAt(quint32 current_x, quint32 current_y, const Image *bottom) const;
+
+	struct offset_info
+	{
+		quint32 x;
+		quint32 y;
+		ColorType offset;
+		bool	early_rejection;
+	};
+
+	offset_info				findMinZDistanceAt(quint32 current_x, quint32 current_y, const Image *bottom, ColorType threshold) const;
 	void			recalcMinMax();
 	void			drawTriangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(ColorType, ColorType));
 	void			dilate(int dilationValue, bool (&compare)(ColorType, ColorType));

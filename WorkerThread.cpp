@@ -254,7 +254,7 @@ void WorkerThread::computePositions()
 	base.setAllPixelsTo(0.);
 
 	QAtomicInt progress_atom(0);
-	for (size_t i = 0; i < _nodes.numNodes(); i++)
+	for (size_t i = 0; i < _nodes.numNodes() and not _shouldStop; i++)
 	{
 		Node* node = _nodes.getNode(i);
         emit report(tr("processing Mesh ") + node->getMesh()->getName(), 0);
@@ -289,7 +289,12 @@ void WorkerThread::computePositions()
 						#pragma omp flush (abort)
 					}
 
-					Image::ColorType z = base.computeMinZDistanceAt(x, y, node->getBottom());
+					#ifdef REPORT_FINE_PROGRESS
+					emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+					#endif
+					const Image* bottom = node->getBottom();
+					Image::offset_info info = base.findMinZDistanceAt(x, y, node->getBottom(), 0);
+					Image::ColorType z = bottom->at(info.x, info.y) - info.offset;
 
                     #ifdef REPORT_FINE_PROGRESS
                     emit reportProgress(progress_atom.fetchAndAddRelaxed(1));

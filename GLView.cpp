@@ -1,6 +1,5 @@
 #include <QDebug>
 #include <QFileDialog>
-#include <QSettings>
 #include "GLView.h"
 #include "config.h"
 
@@ -49,8 +48,6 @@ GLView::GLView(NodeModel *nodes, bool use_lighting, QWidget *parent) :
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 GLView::~GLView()
 {
-    QSettings settings(APP_VENDOR, APP_NAME);
-    settings.setValue("use_lighting", _useLighting);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +61,9 @@ void GLView::setNode(Node *node)
 	QVector3D pos = node->getPos() + QVector3D(geom.x() / 2, geom.y() / 2, geom.z() * 2);
     _cam.translate(pos);
 	_lightPos = QVector4D(pos, 1.);
-	updateGL();
+
+	if (isValid())
+		updateGL();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -130,6 +129,9 @@ void GLView::flushGL() const
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::saveScreenshot()
 {
+	if (not isValid())
+		return;
+
 	flushGL();
 	QImage framebuffer = grabFrameBuffer(false);
 
@@ -233,6 +235,9 @@ void GLView::mousePressEvent(QMouseEvent* event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::mouseMoveEvent(QMouseEvent *event)
 {
+	if (not isValid())
+		return;
+
 	QPoint delta = event->pos() - _mouseLast;
 	_mouseLast = event->pos();
 	QMatrix4x4 mat;
@@ -288,6 +293,9 @@ void GLView::mouseMoveEvent(QMouseEvent *event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::keyPressEvent(QKeyEvent* event)
 {
+	if (not isValid())
+		return;
+
 	QMatrix4x4 mat;
 	mat.setToIdentity();
 	bool camOp = false;
@@ -346,6 +354,9 @@ void GLView::keyPressEvent(QKeyEvent* event)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void GLView::wheelEvent(QWheelEvent *event)
 {
+	if (not isValid())
+		return;
+
 	_cam.translate(0., 0., (float)event->delta() * _wheelSensitivity);
 	updateGL();
 }

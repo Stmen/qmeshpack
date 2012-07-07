@@ -192,7 +192,7 @@ void MainWindow::createActions()
 	_actClear = new QAction(QIcon(":/trolltech/styles/commonstyle/images/standardbutton-clear-32.png"), tr("&Clear"), this);
 	_actClear->setStatusTip(tr("Removes all meshes."));
 	connect(_actClear, SIGNAL(triggered()), _modelMeshFiles, SLOT(clear()));
-    connect(_actClear,  SIGNAL(triggered()), _viewBox, SLOT(updateGL()));
+	connect(_actClear,  SIGNAL(triggered()), _viewBox, SLOT(update()));
 
 	_actSetBoxGeometry = new QAction(QIcon(), tr("Set &geometry"), this);
 	_actSetBoxGeometry->setStatusTip(tr("Sets the bounding box geometry for the target space."));
