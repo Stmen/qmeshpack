@@ -142,7 +142,7 @@ void WorkerThread::loadNodeList()
 	}
 #else
 	std::function<Node* (const QString& str)> mapCreateNode =
-		[this, &progress_atom](const QString& str)
+		[this, &progress_atom, build_normals](const QString& str)
 		{
 			QStringList slist =  str.split(';');
 			Node* node = new Node(slist[0].toUtf8().constData(), _nodes.getDefaultDilationValue());
@@ -253,7 +253,8 @@ void WorkerThread::computePositions()
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
 	base.setAllPixelsTo(0.);
 
-	QAtomicInt progress_atom(0);
+	QAtomicInt progress_atom(0);	
+
 	for (size_t i = 0; i < _nodes.numNodes() and not _shouldStop; i++)
 	{
 		Node* node = _nodes.getNode(i);
@@ -262,6 +263,7 @@ void WorkerThread::computePositions()
 		Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
 		unsigned best_y = 0;
+		float threshold = -INFINITY;
 
 		if (not nodeFits(node))
 		{
@@ -293,33 +295,39 @@ void WorkerThread::computePositions()
 					emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
 					#endif
 					const Image* bottom = node->getBottom();
-					Image::offset_info info = base.findMinZDistanceAt(x, y, node->getBottom(), 0);
+					Image::offset_info info = base.findMinZDistanceAt(x, y, node->getBottom(), threshold);
 					Image::ColorType z = bottom->at(info.x, info.y) - info.offset;
 
                     #ifdef REPORT_FINE_PROGRESS
                     emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
                     #endif
 
-					#pragma omp critical
+					if (not info.early_rejection)
 					{
-						if (z < best_z)
+						#pragma omp critical
 						{
-							best_z = z;
-							best_y = y;
-							best_x = x;
-						}
-						else if (z == best_z)
-						{
-							if (y < best_y)
+							if (z < best_z)
 							{
+								best_z = z;
 								best_y = y;
 								best_x = x;
+								threshold = info.offset;
 							}
-							else if (y == best_y)
+							else if (z == best_z)
 							{
-								if (x < best_x)
+								if (y < best_y)
 								{
+									best_y = y;
 									best_x = x;
+									threshold = info.offset;
+								}
+								else if (y == best_y)
+								{
+									if (x < best_x)
+									{
+										best_x = x;
+										threshold = info.offset;
+									}
 								}
 							}
 						}
@@ -338,11 +346,12 @@ void WorkerThread::computePositions()
         QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
 				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
 
-        if ((newPos + node->getMesh()->getGeometry()).z() > _nodes.getGeometry().z())
+		if ((newPos + node->getMesh()->getMax()).z()> _nodes.getGeometry().z())
 		{
             emit report(tr("mesh ") + node->getMesh()->getName() + tr(" does not fit."), 2);
 			break;
 		}
+		// */
 
 		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
 		node->setPos(newPos);
@@ -391,6 +400,7 @@ void WorkerThread::computePositions()
 		Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
 		unsigned best_y = 0;
+		float threshold = -INFINITY;
 
 		if (not nodeFits(node))
 		{
@@ -401,17 +411,20 @@ void WorkerThread::computePositions()
 		unsigned max_y = _nodes.getGeometry().y() - node->getTop()->getHeight();
 		unsigned max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();
 
-		struct xyz_t { quint32 x, y; Image::ColorType z; };
+		struct xyz_t { quint32 x, y; Image::ColorType z; Image::ColorType offset; bool rejected; };
 
 		std::function<xyz_t (quint64)> mapComputeZ =
-			[this, &base, &progress_atom, &node](quint64 coord)
+			[this, &base, &progress_atom, &node, &threshold](quint64 coord)
 			{
 				quint32 x = (quint32)(coord & 0xFFFFFFFFU);
 				quint32 y = (quint32)((coord >> 32) & 0xFFFFFFFFU);
 				//qDebug() << QString("%1: %2 %3").arg(coord, 0, 16).arg(x, 0, 16).arg(y, 0, 16);
-				Image::ColorType z = base.computeMinZDistanceAt(x, y, node->getBottom());
+				const Image* bottom = node->getBottom();
+				Image::offset_info info = base.findMinZDistanceAt(x, y, node->getBottom(), threshold);
+				Image::ColorType z = bottom->at(info.x, info.y) - info.offset;
+
 				//((*istart) & 0xFFFFFFFFU) << " y: " << (((*istart) >> 32) & 0xFFFFFFFFU)
-				xyz_t out = { x, y, z};
+				xyz_t out = { x, y, z, info.offset, info.early_rejection };
 
                 #ifdef REPORT_FINE_PROGRESS
                 emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
@@ -419,27 +432,33 @@ void WorkerThread::computePositions()
 				return out;
 			};
 
-		std::function<void (int, xyz_t)> reduceBest = [&best_x, &best_y, &best_z](int a, xyz_t xyz)
+		std::function<void (int, xyz_t)> reduceBest = [&best_x, &best_y, &best_z, &threshold](int a, xyz_t xyz)
 		{
-			(void)a;
-			if (xyz.z < best_z)
+			if (not xyz.rejected)
 			{
-				best_z = xyz.z;
-				best_y = xyz.y;
-				best_x = xyz.x;
-			}
-			else if (xyz.z == best_z)
-			{
-				if (xyz.y < best_y)
+				(void)a;
+				if (xyz.z < best_z)
 				{
+					best_z = xyz.z;
 					best_y = xyz.y;
 					best_x = xyz.x;
+					threshold = xyz.offset;
 				}
-				else if (xyz.y == best_y)
+				else if (xyz.z == best_z)
 				{
-					if (xyz.x < best_x)
+					if (xyz.y < best_y)
 					{
+						best_y = xyz.y;
 						best_x = xyz.x;
+						threshold = xyz.offset;
+					}
+					else if (xyz.y == best_y)
+					{
+						if (xyz.x < best_x)
+						{
+							best_x = xyz.x;
+							threshold = xyz.offset;
+						}
 					}
 				}
 			}
@@ -464,7 +483,7 @@ void WorkerThread::computePositions()
 		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
 				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
 
-		if ((newPos + node->getMesh()->getGeometry()).z() > _nodes.getGeometry().z())
+		if ((newPos + node->getMesh()->getMax()).z() > _nodes.getGeometry().z())
 		{
 			emit report(QString("mesh \"%1\" does not fit.").arg(node->getMesh()->getName()), 2);
 			break;

@@ -55,7 +55,7 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue) :
 							 tri.vertex[1] - mesh.getMin(),
 							 tri.vertex[2] - mesh.getMin(),
 							 Image::x_greater_y);
-			}						
+			}
 			dilate(dilationValue, Image::x_greater_y);
 			break;
 
@@ -67,6 +67,7 @@ Image::Image(const Mesh& mesh, Mode mode, unsigned dilationValue) :
 				drawTriangle(tri.vertex[0] - mesh.getMin(), tri.vertex[1] - mesh.getMin(), tri.vertex[2] - mesh.getMin(),
 						 Image::x_less_than_y);
 			}
+			assert(fabs(_minColor) < 1.);
 			dilate(dilationValue, Image::x_less_than_y);
 			break;
 
@@ -178,6 +179,7 @@ void Image::insertAt(quint32 x, quint32 y, quint32 z, const Image &other)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_y, const Image* bottom, ColorType threshold) const
 {
+	assert(threshold >= 0.);
 	if ((current_x + bottom->getWidth() > _width) or (current_y + bottom->getHeight() > _height))
 		THROW(ImageException, "images overlap");
 
@@ -194,10 +196,18 @@ Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_
 			//if (hasPixelAt(current_x + x, current_y + y) and // base image has pixels everywhere
 			if(bottom->hasPixelAt(x, y))
 			{
-				Image::ColorType dist = bottom->at(x, y) - at(current_x + x, current_y + y);
-				if (dist < min_z)
+				Image::ColorType z_diff = bottom->at(x, y) - at(current_x + x, current_y + y);
+
+				if (z_diff < threshold)
 				{
-					min_z = dist;
+					early_rejection = true;
+					assert(0);
+					goto out;
+				}
+
+				if (z_diff < min_z)
+				{
+					min_z = z_diff;
 					min_x = x;
 					min_y = y;
 				}
@@ -205,6 +215,7 @@ Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_
 		}
 	}
 
+out:
 	assert(min_z != INFINITY && "impossible since at least base image has minimum height everywhere." );
 
 	offset_info info = {min_x, min_y, min_z, early_rejection};
