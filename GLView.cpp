@@ -23,7 +23,7 @@ GLView::GLView(bool use_lighting, QWidget* parent) :
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-GLView::GLView(NodeModel *nodes, bool use_lighting, QWidget *parent) :
+GLView::GLView(const NodeModel *nodes, bool use_lighting, QWidget *parent) :
 	QGLWidget(parent),	
 	_nodes(nodes),
 	_mouseLast(0, 0),
@@ -51,7 +51,7 @@ GLView::~GLView()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void GLView::setNode(Node *node)
+void GLView::setNode(const Node *node)
 {
 	_drawPackBox = false;
 	_single = true;

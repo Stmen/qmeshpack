@@ -29,18 +29,15 @@ public:
 	void				setAllPixelsTo(ColorType value);
 	void				setPixel(quint32 x, quint32 y, ColorType pixel);
 	inline quint32		getWidth() const { return _width; }
-	inline quint32		getHeight() const { return _height; }
-	//void		addBorder(unsigned borderSize, ColorType defaultValue);
+	inline quint32		getHeight() const { return _height; }	
 	inline QString		getName() const { return _name; }
 	inline ColorType	at(quint32 x, quint32 y) const { return _data[y * _width + x]; }
 	inline ColorType	maxColor() const { return _maxColor; }
 	inline ColorType	minColor() const { return _minColor; }
 	inline bool			hasPixelAt(quint32 x, quint32 y) const { return _alpha[y * _width + x]; }
 	inline bool			pixelIsInside(long x, long y) const { return (x >= 0) and (x < (int)_width) and (y >= 0) and (y < (int)_height); }
-	//ColorType	maxColor(unsigned x, unsigned y, unsigned w, unsigned h) const;
-	//ColorType	minColor(unsigned x, unsigned y, unsigned w, unsigned h) const;
-	QImage			toQImage() const;
-	void			insertAt(quint32 x, quint32 y, quint32 z, const Image& other);
+	QImage				toQImage() const;
+	void				insertAt(quint32 x, quint32 y, quint32 z, const Image& other);
 
 	struct offset_info
 	{
@@ -50,7 +47,7 @@ public:
 		bool	early_rejection;
 	};
 
-	offset_info				findMinZDistanceAt(quint32 current_x, quint32 current_y, const Image *bottom, ColorType threshold) const;
+	offset_info		findMinZDistanceAt(quint32 current_x, quint32 current_y, const Image *bottom, ColorType threshold) const;
 	void			recalcMinMax();
 	void			drawTriangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(ColorType, ColorType));
 	void			dilate(int dilationValue, bool (&compare)(ColorType, ColorType));

@@ -23,7 +23,7 @@
 #include <functional>
 #include "WorkerThread.h"
 #include "ModelView.h"
-
+#include "Console.h"
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
@@ -40,7 +40,7 @@ public slots:
 	void dialogSetConversionFactor();
 	void dialogSetDefaultDilation();
 	void dialogSaveResults();
-	void addMeshByName(const char* name) { _modelMeshFiles->addMesh(name); }
+	void addMeshByName(const char* name) { _modelMeshFiles.addMesh(name); }
     void processNodes();    
 	void mainNodeSelected(const QModelIndex& index);
 	void mainShowResults();
@@ -49,19 +49,18 @@ public slots:
 	void processNodesDone();	
 	void saveScreenshot();
 	void updateWindowTitle();
-	void consolePrint(QString str, unsigned level = 0) const;
 	void aboutThisApp();
 
 private:
 
-	NodeModel*		_modelMeshFiles;
+	NodeModel		_modelMeshFiles;
     GLView*			_viewBox;
 	QTreeView*      _viewMeshFiles;
 	ModelView*		_viewModel;
 	QProgressBar*	_progressWidget;
 	QToolBar*       _toolMain;
 	WorkerThread*	_threadWorker;
-	QTextEdit*		_console;
+	Console*		_console;
 	QStackedWidget*	_stack;
 
 	// actions
@@ -74,16 +73,17 @@ private:
 	QAction*		_actShowResults;
 	QAction*		_actSaveScreenshot;
 	QAction*		_actSaveResults;
-    QAction*		_actToggleScaleImages;
-    QAction*		_actToggleUseLighting;
 	QAction*		_actSetConversionFactor;
 	QAction*		_actSetDefaultDilationValue;
+
+	QAction*		_actToggleScaleImages;
+	QAction*		_actToggleUseLighting;
 
 	// specific actions that work on the current _currMeshIndex
 	QModelIndex     _currMeshIndex;
 	QAction*        _actMeshRemove;
 	QAction*        _actMeshScale;
-	QAction*        _actMeshTranslate;
+
 	// for box geometry dialog
 	float			_conversionFactor;
     std::function<void (void)> _execAfterWorkerFinished;
@@ -95,10 +95,10 @@ private:
 	void createStack();
 
     void startWorker(WorkerThread::Task task, QVariant arg = QVariant());
+
 private slots:
 
 	void removeCurrentNode();
-	void transformCurrentMesh();
 	void scaleCurrentMesh();
     void setLighting(bool lighting_enable);
 };

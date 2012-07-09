@@ -179,7 +179,6 @@ void Image::insertAt(quint32 x, quint32 y, quint32 z, const Image &other)
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_y, const Image* bottom, ColorType threshold) const
 {
-	assert(threshold >= 0.);
 	if ((current_x + bottom->getWidth() > _width) or (current_y + bottom->getHeight() > _height))
 		THROW(ImageException, "images overlap");
 
@@ -201,7 +200,9 @@ Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_
 				if (z_diff < threshold)
 				{
 					early_rejection = true;
-					assert(0);
+					min_z = z_diff;
+					min_x = x;
+					min_y = y;
 					goto out;
 				}
 
@@ -215,8 +216,9 @@ Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_
 		}
 	}
 
-out:
 	assert(min_z != INFINITY && "impossible since at least base image has minimum height everywhere." );
+
+out:	
 
 	offset_info info = {min_x, min_y, min_z, early_rejection};
 	return info;

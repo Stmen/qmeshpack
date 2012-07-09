@@ -17,7 +17,8 @@ SOURCES += main.cpp \
     WorkerThread.cpp \
     Mesh.cpp \
     Image.cpp \
-    NodeModel.cpp
+    NodeModel.cpp \
+    Console.cpp
 HEADERS += mainwindow.h \
     Exception.h \
     util.h \
@@ -29,7 +30,8 @@ HEADERS += mainwindow.h \
     WorkerThread.h \
     Mesh.h \
     Image.h \
-    NodeModel.h
+    NodeModel.h \
+    Console.h
 RESOURCES += \
     icons.qrc
 

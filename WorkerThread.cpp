@@ -25,6 +25,21 @@ void WorkerThread::makeNormals()
     emit reportProgressMax(_nodes.numNodes());
 
     QAtomicInt progress_atom(0);
+
+#ifdef USE_OPENMP
+	size_t num_nodes = _nodes.numNodes();
+	#pragma omp parallel for
+	for (unsigned i = 0; i < num_nodes; i++)
+	{
+		Mesh* mesh = _nodes.getNode(i)->getMesh();
+		if (not mesh->hasNormals())
+		{
+			emit report(QString("processing mesh \"%1\"").arg(mesh->getName()), Console::Info);
+			mesh->buildNormals();
+		}
+		emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+	}
+#else
     std::function<void (Node* node)> mapBuildNormals =
     [this, &progress_atom](Node* node)
     {
@@ -38,6 +53,7 @@ void WorkerThread::makeNormals()
     };
 
     QtConcurrent::blockingMap(_nodes.begin(), _nodes.end(), mapBuildNormals);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,25 +62,25 @@ void WorkerThread::saveNodeList()
 	QString filename = _args.toString();
 	if (filename.isEmpty())
 	{
-		report(tr("no save file given"), 2);
+		report(tr("no save file given"), Console::Error);
 		return;
 	}
 
 	emit reportProgressMax(_nodes.numNodes());
 
 	const Node* node = _nodes.getNode(0);
-    emit report(QString("processing mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+	emit report(QString("processing mesh \"%1\"").arg(node->getMesh()->getName()), Console::Info);
     Mesh aggregate(*node->getMesh());
 
 	for (unsigned i = 1; i < _nodes.numNodes(); i++)
 	{
 		emit reportProgress(i);
 		node = _nodes.getNode(i);
-        emit report(tr("processing mesh \"%1\"").arg(node->getMesh()->getName()), 0);
+		emit report(tr("processing mesh \"%1\"").arg(node->getMesh()->getName()), Console::Info);
         aggregate.add(*node->getMesh(), node->getPos());
 		if (_shouldStop)
 		{
-			emit report(tr("saving aborted"), 1);
+			emit report(tr("saving aborted"), Console::Notify);
 			break;
 		}
 	}
@@ -77,7 +93,7 @@ void WorkerThread::loadNodeList()
     QStringList qfilenames = _args.toStringList();
     if (qfilenames.isEmpty())
 	{
-		report(tr("no files given"), 2);
+		report(tr("no files given"), Console::Error);
 		return;
 	}
 
@@ -119,7 +135,7 @@ void WorkerThread::loadNodeList()
 		{
 			if (_shouldStop)
 			{
-				emit report(tr("aborting!"), 0);
+				emit report(tr("aborting!"), Console::Info);
 				abort = true;
 			#pragma omp flush (abort)
 			}
@@ -135,7 +151,7 @@ void WorkerThread::loadNodeList()
 				node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
 
 			emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
-            emit report(tr("loaded %1").arg(node->getMesh()->getName()), 0);
+			emit report(tr("loaded %1").arg(node->getMesh()->getName()), Console::Info);
 #pragma omp critical
 			_nodes.addNode(node);
 		}
@@ -199,11 +215,11 @@ void WorkerThread::run()
 	}
 	catch(const std::exception& ex)
 	{
-		report(tr("exception in worker thread: %1").arg(QString::fromUtf8(ex.what())), 2);
+		report(tr("exception in worker thread: %1").arg(QString::fromUtf8(ex.what())), Console::Error);
 	}
 	catch(...)
 	{
-		report(tr("unknown exception in worker thread!"), 2);
+		report(tr("unknown exception in worker thread!"), Console::Error);
 	}
 
 	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
@@ -258,7 +274,7 @@ void WorkerThread::computePositions()
 	for (size_t i = 0; i < _nodes.numNodes() and not _shouldStop; i++)
 	{
 		Node* node = _nodes.getNode(i);
-        emit report(tr("processing Mesh ") + node->getMesh()->getName(), 0);
+		emit report(tr("processing Mesh ") + node->getMesh()->getName(), Console::Info);
 
 		Image::ColorType best_z = INFINITY;
 		unsigned best_x = 0;
@@ -267,7 +283,7 @@ void WorkerThread::computePositions()
 
 		if (not nodeFits(node))
 		{
-            emit report(QString("mesh ") + node->getMesh()->getName() + tr(" does not fit at all."), 2);
+			emit report(QString("mesh ") + node->getMesh()->getName() + tr(" does not fit at all."), Console::Error);
 			break;
 		}
 
@@ -286,14 +302,11 @@ void WorkerThread::computePositions()
 					//Update progress
 					if (_shouldStop)
 					{
-						emit report(tr("aborting!"), 0);
+						emit report(tr("aborting!"), Console::Info);
 						abort = true;
 						#pragma omp flush (abort)
 					}
 
-					#ifdef REPORT_FINE_PROGRESS
-					emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
-					#endif
 					const Image* bottom = node->getBottom();
 					Image::offset_info info = base.findMinZDistanceAt(x, y, node->getBottom(), threshold);
 					Image::ColorType z = bottom->at(info.x, info.y) - info.offset;
@@ -348,7 +361,7 @@ void WorkerThread::computePositions()
 
 		if ((newPos + node->getMesh()->getMax()).z()> _nodes.getGeometry().z())
 		{
-            emit report(tr("mesh ") + node->getMesh()->getName() + tr(" does not fit."), 2);
+			emit report(tr("mesh ") + node->getMesh()->getName() + tr(" does not fit."), Console::Error);
 			break;
 		}
 		// */

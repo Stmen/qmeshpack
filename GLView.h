@@ -13,8 +13,8 @@ class GLView : public QGLWidget
 
 	union
 	{
-        NodeModel*	_nodes;
-        Node*			_node;
+		const NodeModel*	_nodes;
+		const Node*			_node;
 	};
 
 	QMatrix4x4			_cam;
@@ -28,13 +28,13 @@ class GLView : public QGLWidget
 public:
 
     GLView(bool use_lighting, QWidget* parent = NULL);
-    GLView(NodeModel *nodes, bool use_lighting, QWidget* parent = NULL);
+	GLView(const NodeModel *nodes, bool use_lighting, QWidget* parent = NULL);
 	virtual ~GLView();
 
 	inline QSize minimumSizeHint() const { return QSize(100, 100); }
 	inline QSize sizeHint() const { return QSize(600, 400); }
 
-    void	setNode(Node* node);
+	void	setNode(const Node* node);
 	void	flushGL() const;
 	void	saveScreenshot();
     void    setUseLighting(bool do_enable);

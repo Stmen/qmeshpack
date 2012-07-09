@@ -2,6 +2,7 @@
 #include <QThread>
 #include <QVariant>
 #include <QtConcurrentMap>
+#include <Console.h>
 #include "NodeModel.h"
 
 class WorkerThread : public QThread
@@ -32,7 +33,7 @@ signals:
 	void reportProgressMax(int);
 	void reportProgress(int progress);
 	void processingDone();
-	void report(QString what, unsigned level);
+	void report(QString what, Console::InfoLevel level);
     void nodePositionModified(unsigned idx);
 
 public slots:

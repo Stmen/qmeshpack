@@ -43,10 +43,3 @@ void Node::scaleMesh(QVector3D factor)
 	_mesh->scale(factor);
 	rebuildImages();
 }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-void Node::translateMesh(QVector3D offset)
-{
-	_mesh->translate(offset);
-	rebuildImages();
-}
