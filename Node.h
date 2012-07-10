@@ -25,13 +25,13 @@ public:
 	inline void			setPos(QVector3D pos) { _transform.setColumn(3, QVector4D(pos, 1.)); }
 	inline QVector3D	getPos() const { return _transform.column(3).toVector3D(); }
 	inline unsigned		getDilationValue() const  { return _dilation; }
-	inline QMatrix4x4	getTransform() { return _transform; }
+	inline QMatrix4x4	getTransform() const { return _transform; }
 
 	struct Orientation
 	{
 		Image*	top;
 		Image*	bottom;
-		std::function<QVector3D (QVector3D)> transformPosition;
+		QMatrix4x4 transform;
 	};
 
 private:

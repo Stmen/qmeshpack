@@ -177,8 +177,7 @@ void GLView::paintGL()
 
 	if (_single)
 	{
-		QVector3D nodePos = _node->getPos();
-		glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
+		glMultMatrixd(_node->getTransform().constData());
         _node->getMesh()->draw(_useLighting);
 	}
 	else
@@ -193,7 +192,7 @@ void GLView::paintGL()
             min = vecmin(min, nodePos + node->getMesh()->getMin());
             max = vecmax(max, nodePos + node->getMesh()->getMax());
 
-			glTranslatef(nodePos.x(), nodePos.y(), nodePos.z());
+			glMultMatrixd(node->getTransform().constData());
 
             _nodes->getNode(i)->getMesh()->draw(_useLighting);
 			glPopMatrix();

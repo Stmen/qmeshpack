@@ -21,8 +21,9 @@ public:
 	static bool x_less_than_y(ColorType imageZ, ColorType newZ);
 	static bool x_greater_y(ColorType imageZ, ColorType newZ);
 
+	Image(const Image& other);
 	Image(const Mesh &mesh, Mode mode, unsigned dilationValue = 0);
-	Image(quint32 width, quint32 height);
+	Image(quint32 width, quint32 height);	
 	~Image();
 
 	void				clear();
@@ -51,6 +52,10 @@ public:
 	void			recalcMinMax();
 	void			drawTriangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(ColorType, ColorType));
 	void			dilate(int dilationValue, bool (&compare)(ColorType, ColorType));
+	Image*			clockwizeRotate90(unsigned times = 1) const;
+	void			flipHorizontal();
+	void			flipVertical();
+
 	ImageRegion		select(quint32 x, quint32 y, quint32 width, quint32 height);
 	Image*			operator-(const ImageRegion& imgregion);
 

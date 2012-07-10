@@ -1,12 +1,28 @@
-#include "Image.h"
 #include <QDebug>
 #include <cassert>
 #include <cstring>
+#include <memory>
 #include <algorithm>
 #include <iostream>
+#include "Image.h"
 #include "util.h"
 #include "Exception.h"
 using namespace std;
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+Image::Image(const Image& other) :
+	_width(other._width),
+	_height(other._height),
+	_minColor(other._minColor),
+	_maxColor(other._maxColor),
+	_name(other._name + "_copy")
+
+{
+	_data = new ColorType[_width * _height];
+	_alpha = new unsigned char[_width * _height];
+	memcpy(_data, other._data, _width * _height * sizeof(ColorType));
+	memcpy(_alpha, other._alpha, _width * _height * sizeof(unsigned char));
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Image::Image(quint32 width, quint32 height) :
@@ -298,6 +314,86 @@ void Image::dilate(int dilationValue, bool (&compare)(ColorType, ColorType))
 	_maxColor = newImage._maxColor;
 }
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+Image* Image::clockwizeRotate90(unsigned times) const
+{
+	times = times % 4;
+	if (times == 0)
+		return new Image(*this);
+
+
+	Image* new_image = ((times == 2) ? new Image(_width, _height) :  new Image(_height, _width));
+	auto_ptr<Image> guard(new_image);
+
+	std::function<void (quint32, quint32, ColorType)> mapper;
+	switch(times)
+	{
+		case 1:
+			mapper = [new_image](quint32 x, quint32 y, ColorType value)
+			{
+				new_image->setPixel((new_image->_width - 1) - y, x, value);
+			};
+			break;
+
+		case 2:
+			mapper = [new_image](quint32 x, quint32 y, ColorType value)
+			{
+				new_image->setPixel((new_image->_width - 1) - x, (new_image->_height - 1) - y, value);
+			};
+			break;
+
+		case 3:
+			mapper = [new_image](quint32 x, quint32 y, ColorType value)
+			{
+				new_image->setPixel(y, (new_image->_height - 1) - x, value);
+			};
+			break;
+
+		default:
+			assert(0 && "should not happen");
+	}
+
+
+	for (quint32 y = 0; y < _height; y++)
+	{
+		for (quint32 x = 0; x < _width; x++)
+		{
+			if (hasPixelAt(x, y))
+				mapper(x, y, at(x, y));
+		}
+	}
+
+	guard.release();
+
+	return new_image;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void Image::flipHorizontal()
+{
+	for (unsigned y = 0; y < _height; y++)
+	{
+		for (unsigned x = 0; x < (_width / 2); x++)
+		{
+			std::swap(_data[y * _width + x], _data[y * _width + (_width - x - 1)]);
+			std::swap(_alpha[y * _width + x], _alpha[y * _width + (_width - x - 1)]);
+		}
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void Image::flipVertical()
+{
+	for (unsigned y = 0; y < (_height / 2); y++)
+	{
+		for (unsigned x = 0; x < _width; x++)
+		{
+			std::swap(_data[y * _width + x], _data[(_height - y - 1) * _width + x]);
+			std::swap(_alpha[y * _width + x], _alpha[(_height - y - 1) * _width + x]);
+		}
+	}
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Image::drawTriangle(QVector3D fa, QVector3D fb, QVector3D fc, bool (&compare)(ColorType, ColorType))

@@ -32,7 +32,7 @@
 ///	This is mostly a small test routine to see the rendering of the triangles.
 ///
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
+void drawIntro2(Image* img, QVector3D offset, double from, double r1, double r2)
 {
     for (double i = from; i < from + 3.1415926f * 2; i += 0.8)
 	{
@@ -49,6 +49,13 @@ void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
 		QVector3D c = QVector3D((x1 + x2) / 2 * r2, (y1 + y2) / 2 * r2, rand() & 0xFF) + offset;
 		img->drawTriangle(a, b, c, Image::x_greater_y);
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void drawIntro(Image* img, QVector3D offset, double from, double r1, double r2)
+{
+	QVector3D a(100, 100, 100), b(400, 100, 200), c(400, 700, 300);
+	img->drawTriangle(a, b, c, Image::x_greater_y);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -74,30 +81,30 @@ MainWindow::MainWindow() :
 	setCentralWidget(_stack);
 	QVector3D box_geom = qvariant_cast<QVector3D>(settings.value("box_geometry", QVector3D(1000., 1000., 1000.)));
 	_modelMeshFiles.setGeometry(box_geom);
-
+	_threadWorker = new WorkerThread(this, _modelMeshFiles);
 
 	createMeshList();
 
 	// create console
-	QDockWidget* dockWidget = new QDockWidget(tr("Console"), this);
 	_console = new Console(this);
+	QDockWidget* dockWidget = new QDockWidget(tr("Console"), this);	
 	dockWidget->setWidget(_console);
 	addDockWidget(Qt::BottomDockWidgetArea, dockWidget);
-
-	// creating Mesh Packer
-	_threadWorker = new WorkerThread(this, _modelMeshFiles);
-	connect(_threadWorker, SIGNAL(processingDone()), this, SLOT(processNodesDone()), Qt::QueuedConnection);
-	connect(_threadWorker, SIGNAL(report(QString,Console::InfoLevel)), _console, SLOT(addInfo(QString,Console::InfoLevel)), Qt::QueuedConnection);
 
 	createStack();	
 	createActions();
 	createMenusAndToolbars(); // menus depend on existing actions and some widgets like _progress*
 
+	connect(&_modelMeshFiles, SIGNAL(dataChanged(QModelIndex,QModelIndex)), _viewBox, SLOT(update()), Qt::QueuedConnection);
 	connect(&_modelMeshFiles, SIGNAL(geometryChanged()), this, SLOT(updateWindowTitle()));
-	connect(&_modelMeshFiles, SIGNAL(numNodesChanged()), this, SLOT(updateWindowTitle()));
-	updateWindowTitle();
-
+	connect(&_modelMeshFiles, SIGNAL(numNodesChanged()), this, SLOT(updateWindowTitle()));	
+	connect(_threadWorker, SIGNAL(processingDone()), _viewBox, SLOT(update()), Qt::QueuedConnection);
     connect(_threadWorker, SIGNAL(reportProgressMax(int)), _progressWidget, SLOT(setMaximum(int)), Qt::QueuedConnection);
+	connect(_threadWorker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)), Qt::QueuedConnection);
+	connect(_threadWorker, SIGNAL(processingDone()), this, SLOT(processNodesDone()), Qt::QueuedConnection);
+	connect(_threadWorker, SIGNAL(report(QString,Console::InfoLevel)), _console, SLOT(addInfo(QString,Console::InfoLevel)), Qt::QueuedConnection);
+	setWindowIcon(QIcon(":images/images/logo.png"));
+	updateWindowTitle();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -239,10 +246,12 @@ void MainWindow::createActions()
     _actToggleUseLighting = new QAction(QIcon(), tr("Use &lighting"), this);
     _actToggleUseLighting->setStatusTip(tr("Uses lighting"));
     _actToggleUseLighting->setCheckable(true);
-    connect(_actToggleUseLighting, SIGNAL(toggled(bool)), this, SLOT(setLighting(bool)));
-    bool doUseLighting = settings.value("use_lighting", true).toBool();
+	bool doUseLighting = settings.value("use_lighting", true).toBool();
+	_actToggleUseLighting->setChecked(doUseLighting);
+
+	// conecting after setChecked to avoid launching a thread while there are no nodes
+    connect(_actToggleUseLighting, SIGNAL(toggled(bool)), this, SLOT(setLighting(bool)));    
     //setLighting(doUseLighting);
-    _actToggleUseLighting->setChecked(doUseLighting);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -300,43 +309,46 @@ void MainWindow::createStatusBar()
 void MainWindow::createStack()
 {
 	QLabel* label = new QLabel();
-	label->setBackgroundRole(QPalette::Base);
-	//imageLabel->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
-	//imageLabel->setScaledContents(false);
 	label->setScaledContents(true);
+	label->setBackgroundRole(QPalette::Base);
+	label->setSizePolicy(QSizePolicy:: Ignored, QSizePolicy::Ignored);
+	//label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+
+#ifdef TEST_IMAGE
 	Image img(700, 700);
 	//testTriangle1(&img);
 	//img.dilate(10, Image::maxValue);
 	drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0, 150, 300);
+	Image* o = img.clockwizeRotate90(3);
+	//Image* o = new Image(img);
 	//drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0.2, 50, 300);
 	//drawIntro(&img, QVector3D(img.getWidth() / 2, img.getHeight() / 2, 0), 0.4, 50, 300);
 
 	QFont font("times", 20);
-	QPixmap pixmap = QPixmap::fromImage(img.toQImage(),  Qt::ThresholdDither);
+	QPixmap pixmap = QPixmap::fromImage(o->toQImage(),  Qt::ThresholdDither);
 	QPainter painter(&pixmap);
 	painter.setFont(font);
 	painter.setPen(Qt::red);
 	painter.drawText(0, 0, width(), height(), 0, APP_NAME);
 	painter.end();
-
 	label->setPixmap(pixmap);
-	label->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+	label->setScaledContents(false);
+#else
+	QPixmap pixmap(":images/images/logo.png");
+	label->setPixmap(pixmap);
+#endif
 	_stack->addWidget(label);
 
     QSettings settings(APP_VENDOR, APP_NAME);
     bool use_lighting = settings.value("use_lighting", true).toBool();
 	_viewBox = new GLView(&_modelMeshFiles, use_lighting);
     _stack->addWidget(_viewBox);
-    connect(_threadWorker, SIGNAL(processingDone()), _viewBox, SLOT(update()), Qt::QueuedConnection);
-	connect(&_modelMeshFiles, SIGNAL(dataChanged(QModelIndex,QModelIndex)), _viewBox, SLOT(update()), Qt::QueuedConnection);
 
     _viewModel = new ModelView (use_lighting, this);
 	_stack->addWidget(_viewModel);
 
 	_progressWidget = new QProgressBar();
 	_progressWidget->setEnabled(false);
-
-    connect(_threadWorker, SIGNAL(reportProgress(int)), _progressWidget, SLOT(setValue(int)), Qt::QueuedConnection);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

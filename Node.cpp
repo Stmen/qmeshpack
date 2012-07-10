@@ -13,6 +13,7 @@ Node::Node(QString filename, unsigned dilation)	:
 	auto_ptr<Mesh> mesh_guard(_mesh);
 	rebuildImages();
 	mesh_guard.release();
+	_transform.setToIdentity();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

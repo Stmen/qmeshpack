@@ -36,4 +36,7 @@ RESOURCES += \
     icons.qrc
 
 OTHER_FILES += \
-    README.txt
+    README.txt \
+    images/logo.png \
+    images/camera.png \
+    images/logo.svg
