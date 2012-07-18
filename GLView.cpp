@@ -4,6 +4,45 @@
 #include "config.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+static void drawAxisAlignedBox(QVector3D min, QVector3D max)
+{
+	// AABB Vertices
+	GLdouble data[] =
+	{
+		min.x(), min.y(), min.z(),
+		min.x(), max.y(), min.z(),
+		max.x(), max.y(), min.z(),
+		max.x(), min.y(), min.z(),
+		min.x(), min.y(), max.z(),
+		min.x(), max.y(), max.z(),
+		max.x(), max.y(), max.z(),
+		max.x(), min.y(), max.z()
+	};
+
+	static const unsigned indices[] =
+	{
+			0, 1, 2, 3, // front face
+			0, 4, 5, 1, // left face
+			2, 6, 5, // top face
+			4, 7, 6, // back face
+			2, 3, 7 // right face
+	};
+
+	glVertexPointer(3, GL_DOUBLE, 0, data);
+	glDrawElements(GL_LINE_STRIP, sizeof(indices) / sizeof(indices[0]), GL_UNSIGNED_INT, indices);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+static void testTriangle()
+{
+	glBegin(GL_TRIANGLES);
+	glVertex3f(-5,-5, 15);
+	glVertex3f(5, -5, 15);
+	glVertex3f(0, 5, 15);
+	glEnd();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 GLView::GLView(bool use_lighting, QWidget* parent) :
 	QGLWidget(parent),
 	_nodes(0),
@@ -19,7 +58,6 @@ GLView::GLView(bool use_lighting, QWidget* parent) :
 	setAutoBufferSwap(false);
 	_mouseLast = QPoint(0., 0.);
 	_cam.setToIdentity();
-	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));    
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +80,6 @@ GLView::GLView(const NodeModel *nodes, bool use_lighting, QWidget *parent) :
 	_cam.translate(pos);
 	_lightPos = QVector4D(pos, 1.);
 	connect(nodes, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
-	//connect(&_singleNodeWrapper, SIGNAL(geometryChanged()), this, SLOT(updateGL()));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -215,13 +252,6 @@ void GLView::paintGL()
         glDisableClientState(GL_NORMAL_ARRAY);
     }
 
-/* test triangle
-	glBegin(GL_TRIANGLES);
-	glVertex3f(-5,-5, 15);
-	glVertex3f(5, -5, 15);
-	glVertex3f(0, 5, 15);
-	glEnd();
-	//*/
 	swapBuffers();
 }
 

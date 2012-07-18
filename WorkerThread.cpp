@@ -20,6 +20,51 @@ WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+void WorkerThread::run()
+{
+	quint64 time = QDateTime::currentDateTime().toMSecsSinceEpoch();
+	_shouldStop = false;
+	try
+	{
+		switch (_task)
+		{
+			case ComputePositions:
+				computePositions();
+				break;
+
+			case SaveMeshList:
+				if (_args.isValid())
+					saveNodeList();
+				break;
+
+			case LoadMeshList:
+				if (_args.isValid())
+					loadNodeList();
+				break;
+
+			case MakeNormals:
+				makeNormals();
+				break;
+
+			default:
+				assert(0 && "bad task was selected, this should never happen");
+				break;
+		}
+	}
+	catch(const std::exception& ex)
+	{
+		report(tr("exception in worker thread: %1").arg(QString::fromUtf8(ex.what())), Console::Error);
+	}
+	catch(...)
+	{
+		report(tr("unknown exception in worker thread!"), Console::Error);
+	}
+
+	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
+	emit processingDone();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::makeNormals()
 {
     emit reportProgressMax(_nodes.numNodes());
@@ -182,51 +227,6 @@ void WorkerThread::loadNodeList()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-void WorkerThread::run()
-{
-	quint64 time = QDateTime::currentDateTime().toMSecsSinceEpoch();
-	_shouldStop = false;
-	try
-	{
-		switch (_task)
-		{
-			case ComputePositions:
-				computePositions();
-				break;
-
-			case SaveMeshList:
-				if (_args.isValid())
-					saveNodeList();
-				break;
-
-			case LoadMeshList:
-				if (_args.isValid())
-					loadNodeList();
-				break;
-
-            case MakeNormals:
-                makeNormals();
-                break;
-
-			default:
-				assert(0 && "bad task was selected, this should never happen");
-				break;
-		}
-	}
-	catch(const std::exception& ex)
-	{
-		report(tr("exception in worker thread: %1").arg(QString::fromUtf8(ex.what())), Console::Error);
-	}
-	catch(...)
-	{
-		report(tr("unknown exception in worker thread!"), Console::Error);
-	}
-
-	_lastProcessingMSecs = QDateTime::currentDateTime().toMSecsSinceEpoch() - time;
-	emit processingDone();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 bool WorkerThread::nodeFits(const Node* node) const
 {
 	QVector3D geometry = _nodes.getGeometry();
@@ -268,6 +268,7 @@ void WorkerThread::computePositions()
 
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
 	base.setAllPixelsTo(0.);
+	double max_height = -INFINITY;
 
 	QAtomicInt progress_atom(0);	
 
@@ -319,29 +320,17 @@ void WorkerThread::computePositions()
 					{
 						#pragma omp critical
 						{
-							if (z < best_z)
+							if ((z < best_z) or (z == best_z and y < best_y) or (z == best_z and y == best_y and x < best_x))
 							{
 								best_z = z;
 								best_y = y;
 								best_x = x;
 								threshold = info.offset;
-							}
-							else if (z == best_z)
-							{
-								if (y < best_y)
-								{
-									best_y = y;
-									best_x = x;
-									threshold = info.offset;
-								}
-								else if (y == best_y)
-								{
-									if (x < best_x)
-									{
-										best_x = x;
-										threshold = info.offset;
-									}
-								}
+								double h = best_z - node->getMesh()->getMin().z()
+												   + node->getMesh()->getMax().z()
+												   + node->getDilationValue();
+								if (h > max_height)
+									max_height = h;
 							}
 						}
 					}
@@ -372,6 +361,7 @@ void WorkerThread::computePositions()
         emit nodePositionModified(i);
 	}
 	#pragma omp flush
+	emit report(tr("max height is %1").arg(max_height), Console::Info);
 }
 
 #else

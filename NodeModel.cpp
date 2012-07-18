@@ -19,7 +19,7 @@ NodeModel::~NodeModel()
 int	NodeModel::columnCount(const QModelIndex& parent) const
 {
 	(void)parent.row(); // supress unused warning
-	return 4; // name, position, geometry, dilation value
+	return 5; // name, position, dilation value, AABB size, AABB volume
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -53,9 +53,12 @@ QVariant NodeModel::headerData(int section, Qt::Orientation orientation, int rol
 				case 1:
 					return QString("Poisition");
 				case 2:
-					return QString("Geometry");
-				case 3:
 					return QString("Dilation value");
+				case 3:
+					return QString("AABB Size");
+				case 4:
+					return QString("AABB Volume");
+
 			}
 		}
 	}
@@ -79,9 +82,14 @@ QVariant NodeModel::data(const QModelIndex& index, int role) const
 					case 1:
 						return toString(node->getPos());
 					case 2:
-                        return toString(node->getMesh()->getGeometry());
-					case 3:
 						return node->getDilationValue();
+					case 3:
+						return toString(node->getMesh()->getGeometry());
+					case 4:
+					{
+						QVector3D geom = node->getMesh()->getGeometry();
+						return geom.x() * geom.y() * geom.z();
+					}
 				}
 
 			case Qt::UserRole:
@@ -198,3 +206,15 @@ void NodeModel::sortByBBoxSize()
 	//emit dataChanged(createIndex(0, 0), createIndex(_nodes.size() - 1, 0););
 	endResetModel();
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+double NodeModel::nodesVolume() const
+{
+	double volume = 0.;
+	for (unsigned i = 0; i < _nodes.size(); i++)
+	{
+		volume += _nodes[i]->getMesh()->aabbVolume();
+	}
+	return volume;
+}
+

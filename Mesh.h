@@ -37,6 +37,8 @@ public:
 	void		buildNormals();
 	void		save(QString filename);
     bool        hasNormals() const { return _normals; }
+	double		aabbVolume() const;
+
 
     /// this class is used to iterate over the Triangles of a Mesh.
     class Iterator : public ::Iterator<Triangle>
@@ -69,5 +71,3 @@ private:
 	QString					_filename; /// filename, that is the source of this mesh. It is empty if this is an aggregate.
 
 };
-
-void drawAxisAlignedBox(QVector3D min, QVector3D max);

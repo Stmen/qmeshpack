@@ -20,7 +20,6 @@ public:
 	QModelIndex index(int row, int column, const QModelIndex & parent = QModelIndex()) const;
 	QModelIndex parent(const QModelIndex &child) const;
 	bool removeRows(int row, int count, const QModelIndex & parent = QModelIndex());
-	//const NodeList&	getNodeList() const { return _nodes; }
 
 	Node*		getNode(unsigned i) const { return _nodes[i]; }
 	void		setGeometry(QVector3D geometry);
@@ -29,8 +28,10 @@ public:
 	void		sortByBBoxSize();
 	unsigned	getDefaultDilationValue() const { return _defaultDilationValue; }
 	void		setDefaultDilationValue(unsigned defaultDilationValue) { _defaultDilationValue = defaultDilationValue; }
+	double		nodesVolume() const;
 
 signals:
+
 	void		geometryChanged();
 	void		numNodesChanged();
 
@@ -40,6 +41,7 @@ public slots:
 	void		addNode(Node* node);
     void		nodePositionChanged(unsigned i);
 	void		clear();
+
     std::vector<Node*>::iterator begin() { return _nodes.begin(); }
     std::vector<Node*>::iterator end() { return _nodes.end(); }
 

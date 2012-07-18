@@ -395,35 +395,8 @@ void Mesh::Iterator::next()
 ///	Draws this mesh.
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+
 #include <qgl.h>
-void drawAxisAlignedBox(QVector3D min, QVector3D max)
-{
-	// AABB Vertices
-	GLdouble data[] =
-	{
-		min.x(), min.y(), min.z(),
-		min.x(), max.y(), min.z(),
-		max.x(), max.y(), min.z(),
-		max.x(), min.y(), min.z(),
-		min.x(), min.y(), max.z(),
-		min.x(), max.y(), max.z(),
-		max.x(), max.y(), max.z(),
-		max.x(), min.y(), max.z()
-	};
-
-	static const unsigned indices[] =
-	{
-			0, 1, 2, 3, // front face
-			0, 4, 5, 1, // left face
-			2, 6, 5, // top face
-			4, 7, 6, // back face
-			2, 3, 7 // right face
-	};
-
-	glVertexPointer(3, GL_DOUBLE, 0, data);
-	glDrawElements(GL_LINE_STRIP, sizeof(indices) / sizeof(indices[0]), GL_UNSIGNED_INT, indices);
-}
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Mesh::draw(bool use_lighting) const
 {	
@@ -440,5 +413,11 @@ void Mesh::draw(bool use_lighting) const
 	glDrawElements(GL_TRIANGLES, _triangleIndices.size(), GL_UNSIGNED_INT, &_triangleIndices[0]);
 	//glDisableClientState(GL_NORMAL_ARRAY);
 	//glDisableClientState(GL_VERTEX_ARRAY);
+}
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+double Mesh::aabbVolume() const
+{
+	QVector3D v = _max - _min;
+	return fabs(v.x()) * fabs(v.y()) * fabs(v.z());
 }

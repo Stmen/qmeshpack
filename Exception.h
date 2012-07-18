@@ -6,6 +6,7 @@ class BaseException: public QtConcurrent::Exception
 {	
 	public:
 	BaseException() {}
+	BaseException(const char* fmt, ...);
 	BaseException(QString msg, const char* funcname, const char* filename, unsigned line);
 
 	virtual ~BaseException() throw ()
