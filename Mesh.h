@@ -38,7 +38,7 @@ public:
 	void		save(QString filename);
     bool        hasNormals() const { return _normals; }
 	double		aabbVolume() const;
-
+	static Mesh*	random(unsigned max_vertices = 5);
 
     /// this class is used to iterate over the Triangles of a Mesh.
     class Iterator : public ::Iterator<Triangle>
@@ -61,6 +61,8 @@ public:
     Iterator vertexIterator() const { return Iterator(*this); }
 
 private:
+
+	Mesh();
 
 	std::vector<QVector3D>	_vertices;  /// this array stores vertix triples of floats, which represent the vertices
 	QVector3D*				_normals;  /// this array stores vertix triples of floats, which represent the vertices

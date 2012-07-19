@@ -213,6 +213,7 @@ Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_
 			{
 				Image::ColorType z_diff = bottom->at(x, y) - at(current_x + x, current_y + y);
 
+				#ifdef ENABLE_EARLY_TERMINATION
 				if (z_diff < threshold)
 				{
 					early_rejection = true;
@@ -221,6 +222,7 @@ Image::offset_info Image::findMinZDistanceAt(quint32 current_x, quint32 current_
 					min_y = y;
 					goto out;
 				}
+				#endif
 
 				if (z_diff < min_z)
 				{

@@ -14,6 +14,32 @@
 #include <QSettings>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+Mesh::Mesh() :
+	_normals(0)
+{
+	// constructor is private, no need to initialize anything here
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+Mesh* Mesh::random(unsigned max_vertices)
+{
+	if (max_vertices < 3)
+		THROW(MeshException, QString("solid too small"));
+
+
+	Mesh* mesh = new Mesh();
+	//_triangleIndices.resize();
+	/*
+	_min(other._min),
+	_max(other._max),
+	*/
+	mesh->_name = QString("random_%1").arg(rand());
+
+	return mesh;
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 Mesh::Mesh(const Mesh& other) :
 	_vertices(other._vertices.size()),
 	_normals(0),

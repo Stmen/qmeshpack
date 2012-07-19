@@ -27,6 +27,7 @@ Node::~Node()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void Node::rebuildImages()
 {
+#if defined (USE_QTCONCURRENT) or defined (USE_OPENMP)
 	QFuture<Image*> futureTop =  QtConcurrent::run([this](){return new Image(*_mesh, Image::Top, _dilation);});
 	QFuture<Image*> futureBottom =  QtConcurrent::run([this](){return new Image(*_mesh, Image::Bottom, _dilation);});
 	if (_top)
@@ -36,6 +37,10 @@ void Node::rebuildImages()
 	}
 	_top = futureTop.result();
 	_bottom = futureBottom.result();
+#else
+	_top = new Image(*_mesh, Image::Top, _dilation);
+	_bottom = new Image(*_mesh, Image::Bottom, _dilation);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
