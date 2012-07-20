@@ -62,18 +62,32 @@ inline QVector3D floor(QVector3D v)
 	return QVector3D(::floor(v.x()), ::floor(v.y()), ::floor(v.z()));
 }
 
-inline QVector3D vecmax(QVector3D v1, QVector3D v2)
+inline QVector3D vecmax(const QVector3D v1, const QVector3D v2)
 {
 	return QVector3D(((v1.x() > v2.x()) ? v1.x() : v2.x()),
 					 ((v1.y() > v2.y()) ? v1.y() : v2.y()),
 					 ((v1.z() > v2.z()) ? v1.z() : v2.z()));
 }
 
-inline QVector3D vecmin(QVector3D v1, QVector3D v2)
+inline QVector3D vecmin(const QVector3D v1, const QVector3D v2)
 {
 	return QVector3D(((v1.x() < v2.x()) ? v1.x() : v2.x()),
 					 ((v1.y() < v2.y()) ? v1.y() : v2.y()),
 					 ((v1.z() < v2.z()) ? v1.z() : v2.z()));
+}
+
+inline bool operator<(const QVector3D v1, const QVector3D v2)
+{
+	return	(v1.x() < v2.x()) or
+			((v1.x() == v2.x()) and (v1.y() < v2.y())) or
+			((v1.x() == v2.x()) and (v1.y() == v2.y()) and (v1.z() < v2.z()));
+}
+
+inline bool operator>(const QVector3D v1, const QVector3D v2)
+{
+	return	(v1.x() > v2.x()) or
+			((v1.x() == v2.x()) and (v1.y() > v2.y())) or
+			((v1.x() == v2.x()) and (v1.y() == v2.y()) and (v1.z() > v2.z()));
 }
 
 inline QString toString(QVector3D vec)

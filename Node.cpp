@@ -49,3 +49,13 @@ void Node::scaleMesh(QVector3D factor)
 	_mesh->scale(factor);
 	rebuildImages();
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void Node::setDilationValue(unsigned dil)
+{
+	if (dil != _dilation)
+	{
+		_dilation = dil;
+		rebuildImages();
+	}
+}

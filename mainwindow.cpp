@@ -157,6 +157,9 @@ void MainWindow::createMeshList()
 	_viewMeshFiles = new QTreeView(this);
 	_viewMeshFiles->setModel(&_modelMeshFiles);
 	_viewMeshFiles->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
+	_viewMeshFiles->header()->setSortIndicatorShown(true); // optional
+	_viewMeshFiles->header()->setClickable(true);
+	_viewMeshFiles->setSortingEnabled(true);
 	//_viewMeshFiles->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
 	_viewMeshFiles->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(_viewMeshFiles, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(menuContextNode(const QPoint &)));

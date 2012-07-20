@@ -39,6 +39,7 @@ public:
 	inline bool			pixelIsInside(long x, long y) const { return (x >= 0) and (x < (int)_width) and (y >= 0) and (y < (int)_height); }
 	QImage				toQImage() const;
 	void				insertAt(quint32 x, quint32 y, quint32 z, const Image& other);
+	ColorType			diffSum(const Image& other) const;
 
 	struct offset_info
 	{

@@ -34,8 +34,12 @@ int NodeModel::rowCount(const QModelIndex& parent)const
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 Qt::ItemFlags NodeModel::flags(const QModelIndex &index) const
 {
-	(void)index.row(); // supress unused warning
-	return  Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+	Qt::ItemFlags flags = 0;
+	if (index.column() == 0 || index.column() == 2)
+		flags |= Qt::ItemIsEditable;
+
+	flags |= Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+	return flags;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -48,21 +52,46 @@ QVariant NodeModel::headerData(int section, Qt::Orientation orientation, int rol
 			switch (section)
 			{
 				default:
-				case 0:
+				case Name:
 					return QString("Name");
-				case 1:
-					return QString("Poisition");
-				case 2:
+				case Position:
+					return QString("Position");
+				case Dilation:
 					return QString("Dilation value");
-				case 3:
+				case AABBSize:
 					return QString("AABB Size");
-				case 4:
+				case AABBVolume:
 					return QString("AABB Volume");
-
 			}
 		}
 	}
 	return QVariant();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+bool NodeModel::setData(const QModelIndex & index, const QVariant& value, int role)
+{
+	bool ok = false;
+	if (role == Qt::EditRole and index.isValid() and index.row() >= 0 and (size_t)index.row() < _nodes.size())
+	{
+		if (index.column() == (int)Name)
+		{
+			emit dataChanged(index, index);
+			_nodes[index.row()]->getMesh()->setName(value.toString());
+			return true;
+		}
+		else if (index.column() == (int)Dilation)
+		{
+			int dval = value.toUInt(&ok);
+			if (ok)
+			{
+				_nodes[index.row()]->setDilationValue(dval);
+				emit dataChanged(index, index);
+			}
+		}
+	}
+
+	return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,15 +106,15 @@ QVariant NodeModel::data(const QModelIndex& index, int role) const
 				switch(index.column())
 				{
 					default:
-					case 0:
+					case Name:
                         return node->getMesh()->getName();
-					case 1:
+					case Position:
 						return toString(node->getPos());
-					case 2:
+					case Dilation:
 						return node->getDilationValue();
-					case 3:
+					case AABBSize:
 						return toString(node->getMesh()->getGeometry());
-					case 4:
+					case AABBVolume:
 					{
 						QVector3D geom = node->getMesh()->getGeometry();
 						return geom.x() * geom.y() * geom.z();
@@ -189,7 +218,7 @@ void NodeModel::nodePositionChanged(unsigned i)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-static bool greaterVolume(Node* n1, Node* n2)
+static bool greaterVolume(const Node* n1, const Node* n2)
 {
     QVector3D g1 = n1->getMesh()->getGeometry();
     QVector3D g2 = n2->getMesh()->getGeometry();
@@ -197,12 +226,89 @@ static bool greaterVolume(Node* n1, Node* n2)
     return (g1.x() * g1.y() * g1.z()) > (g2.x() * g2.y() * g2.z());
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+static bool greaterHeight(const Node* n1, const Node* n2)
+{
+	QVector3D g1 = n1->getMesh()->getGeometry();
+	QVector3D g2 = n2->getMesh()->getGeometry();
+
+	return (g1.y() > g2.y());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+static bool greaterTopBottomVolume(const Node* n1, const Node* n2)
+{
+	double vol1 = n1->getTop()->diffSum(*n1->getBottom());
+	double vol2 = n2->getTop()->diffSum(*n2->getBottom());
+	return (vol1 > vol2);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void NodeModel::sort(int column, Qt::SortOrder order)
+{
+	std::function<bool (const Node*, const Node*)> comparator;
+	switch((ColumnIndex)column)
+	{
+		case Name:
+			if (order == Qt::AscendingOrder)
+				comparator = [](const Node* n1, const Node* n2){ return n1->getMesh()->getName() < n2->getMesh()->getName(); };
+			else
+				comparator = [](const Node* n1, const Node* n2){ return n1->getMesh()->getName() > n2->getMesh()->getName(); };
+			break;
+
+		case Position:
+			if (order == Qt::AscendingOrder)
+				comparator = [](const Node* n1, const Node* n2){ return n1->getPos() < n2->getPos(); };
+			else
+				comparator = [](const Node* n1, const Node* n2){ return n1->getPos() > n2->getPos(); };
+			break;
+
+		case Dilation:
+			if (order == Qt::AscendingOrder)
+				comparator = [](const Node* n1, const Node* n2){ return n1->getDilationValue() < n2->getDilationValue(); };
+			else
+				comparator = [](const Node* n1, const Node* n2){ return n1->getDilationValue() > n2->getDilationValue(); };
+			break;
+
+		case AABBSize:
+			if (order == Qt::AscendingOrder)
+				comparator = [](const Node* n1, const Node* n2){ return n1->getMesh()->getGeometry() < n2->getMesh()->getGeometry(); };
+			else
+				comparator = [](const Node* n1, const Node* n2){ return n1->getMesh()->getGeometry() > n2->getMesh()->getGeometry(); };
+			break;
+
+		case AABBVolume: // AABB Volume
+			if (order == Qt::AscendingOrder)
+				comparator = [](const Node* n1, const Node* n2){ return n1->getAABBVolume() < n2->getAABBVolume(); };
+			else
+				comparator = [](const Node* n1, const Node* n2){ return n1->getAABBVolume() > n2->getAABBVolume(); };
+			break;
+
+		default:
+			return;
+	}
+
+	beginResetModel();
+	std::sort(_nodes.begin(), _nodes.end(), comparator);
+	endResetModel();
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void NodeModel::sortByBBoxSize()
 {
 	beginResetModel();
-    std::sort(_nodes.begin(), _nodes.end(), greaterVolume);
+	bool (*comparator)(const Node*, const Node*);
+
+#if MODELSORT == 1
+	comparator = greaterVolume;
+#elif MODELSORT == 2
+	comparator == greaterHeight;
+#else
+	comparator = greaterVolume;
+#endif
+
+
+	std::sort(_nodes.begin(), _nodes.end(), comparator);
 	//emit dataChanged(createIndex(0, 0), createIndex(_nodes.size() - 1, 0););
 	endResetModel();
 }

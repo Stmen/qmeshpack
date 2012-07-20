@@ -47,7 +47,8 @@ Mesh::Mesh(const Mesh& other) :
 	_min(other._min),
 	_max(other._max),
 	_name(other._name),
-	_filename(other._filename)
+	_filename(other._filename),
+	_fullyTriangulated(other._fullyTriangulated)
 {
 	memcpy(&_vertices[0], &other._vertices[0], _vertices.size() * sizeof(_vertices[0]));
 	if (other._normals)
@@ -62,7 +63,8 @@ Mesh::Mesh(const Mesh& other) :
 Mesh::Mesh(const char* off_filename) :
 	_normals(0),
 	_min(INFINITY, INFINITY, INFINITY),
-	_max(-INFINITY, -INFINITY, -INFINITY)
+	_max(-INFINITY, -INFINITY, -INFINITY),
+	_fullyTriangulated(true)
 {    
 	_filename = off_filename;
 
@@ -130,10 +132,8 @@ Mesh::Mesh(const char* off_filename) :
         in >> poly_type;
         if (in.status() == QTextStream::Ok)
         {
-            /*
             if(poly_type != 3)
-                throw Exception("%s: in %s:%u polygon is not a triangle.", __FUNCTION__, off_filename, lineNumber);
-            */
+				_fullyTriangulated = false;
 
             unsigned vertexIndex;
             for(int i = 0; i < poly_type; i++)

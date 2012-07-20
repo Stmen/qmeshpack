@@ -9,12 +9,79 @@
 #include <stdexcept>
 #include <cstring>
 #include <vector>
+#include <atomic>
 #include "WorkerThread.h"
 #include "config.h"
 #ifdef USE_OPENMP
 #include <omp.h>
 #endif
+/*
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+void WorkerThread::computePositions()
+{
+	_nodes.sort();
+	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
+	base.setAllPixelsTo(0.); // initialising base image
+	std::atomic<float> max_height(-INFINITY); // A variable that keeps track of the highest feature to
 
+	for (size_t i = 0; i < _nodes.numNodes() and not _shouldStop; i++)
+	{
+		// current best position
+		Image::ColorType	best_z = INFINITY;
+		unsigned			best_x = 0; // current best X position
+		unsigned			best_y = 0; // current best Y position
+		float				threshold = -INFINITY; // threshold for early rejection
+
+		Node* node = _nodes.getNode(i);
+		if (not nodeFits(node))
+			break; // node deosn't fit, abort
+
+		unsigned max_y = _nodes.getGeometry().y() - node->getTop()->getHeight(),
+				 max_x = _nodes.getGeometry().x() - node->getTop()->getWidth();
+
+		#pragma omp parallel for collapse(2)
+		for (unsigned y = 0; y < max_y; y++)
+		{
+			for (unsigned x = 0; x < max_x; x++)
+			{
+				const Image* bottom = node->getBottom();
+				Image::offset_info info = base.findMinZDistanceAt(x, y, node->getBottom(), threshold);
+				Image::ColorType z = bottom->at(info.x, info.y) - info.offset;
+				if (not info.early_rejection)
+				{
+					#pragma omp critical
+					{
+						if ((z < best_z) or // axes priority pradicate. Should ideally be specified by the user.
+								(z == best_z and y < best_y) or
+								(z == best_z and y == best_y and x < best_x))
+							{
+								best_z = z;
+								best_y = y;
+								best_x = x;
+								threshold = info.offset;
+								double h = z - node->getMesh()->getMin().z()
+											 + node->getMesh()->getMax().z()
+											 + node->getDilationValue();
+								if (h > max_height)
+									max_height = h;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (max_height > _nodes.getGeometry().z())
+			break; // nodes don't fit in the box anymore.
+
+		QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
+						   QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
+
+		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
+		node->setPos(newPos);
+	}
+}
+//*/
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 WorkerThread::WorkerThread(QObject *parent, NodeModel &nodes) :
@@ -161,8 +228,7 @@ void WorkerThread::loadNodeList()
         filenames.push_back(qfilenames[i]);
 
 	emit reportProgressMax(filenames.size());
-	QAtomicInt progress_atom(0);
-
+	std::atomic<int> progress_atom(0);
 
 	#ifndef USE_QTCONCURRENT
 	size_t fsize = filenames.size();
@@ -197,8 +263,11 @@ void WorkerThread::loadNodeList()
 			if (slist.size() == 4)
 				node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
 
-			emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+			emit reportProgress(progress_atom++);
 			emit report(tr("loaded %1").arg(node->getMesh()->getName()), Console::Info);
+			if (not node->getMesh()->wasFullyTriangulated())
+				report(tr("warning, mesh %1 was not fully triangulated.").arg(node->getMesh()->getName()), Console::Notify);
+
 			#ifdef USE_OPENMP
 			#pragma omp critical
 			#endif
@@ -218,9 +287,11 @@ void WorkerThread::loadNodeList()
 			if (slist.size() == 4)
 				node->setPos(QVector3D(slist[1].toDouble(), slist[2].toDouble(), slist[3].toDouble()));
 
-			emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+			emit reportProgress(progress_atom++);
+			emit report(tr("loaded %1").arg(node->getMesh()->getName()), Console::Info);
+			if (not node->getMesh()->wasFullyTriangulated())
+				report(tr("warning, mesh %1 was not fully triangulated.").arg(node->getMesh()->getName()), Console::Notify);
 			return node;
-
 		};
 
 	// reducer
@@ -255,13 +326,12 @@ void WorkerThread::shouldStop()
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 void WorkerThread::computePositions()
 {	    
-	emit reportProgressMax(_nodes.numNodes());
+	emit reportProgressMax(_nodes.numNodes()); // Signal to GUI: setting
 
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
 	base.setAllPixelsTo(0.);
-	double max_height = -INFINITY;
-
-	QAtomicInt progress_atom(0);	
+	std::atomic<float> max_height(-INFINITY); // A variable that keeps track of the highest feature to
+	std::atomic<int> progress_atom(0);
 
 	for (size_t i = 0; i < _nodes.numNodes() and not _shouldStop; i++)
 	{
@@ -269,8 +339,8 @@ void WorkerThread::computePositions()
 		emit report(tr("processing Mesh ") + node->getMesh()->getName(), Console::Info);
 
 		Image::ColorType best_z = INFINITY;
-		unsigned best_x = 0;
-		unsigned best_y = 0;
+		unsigned best_x = 0; // current best X position
+		unsigned best_y = 0; // current best Y position
 		float threshold = -INFINITY;
 
 		if (not nodeFits(node))
@@ -294,8 +364,7 @@ void WorkerThread::computePositions()
 				#pragma omp flush (abort)
 				#endif
 				if (not abort)
-				{
-					//Update progress
+				{					
 					if (_shouldStop)
 					{
 						emit report(tr("aborting!"), Console::Info);
@@ -315,15 +384,16 @@ void WorkerThread::computePositions()
 						#pragma omp critical
 						#endif
 						{
+							// axes priority pradicate. Should ideally be specified by the user.
 							if ((z < best_z) or (z == best_z and y < best_y) or (z == best_z and y == best_y and x < best_x))
 							{
 								best_z = z;
 								best_y = y;
 								best_x = x;
 								threshold = info.offset;
-								double h = best_z - node->getMesh()->getMin().z()
-												   + node->getMesh()->getMax().z()
-												   + node->getDilationValue();
+								double h = z - node->getMesh()->getMin().z()
+											 + node->getMesh()->getMax().z()
+											 + node->getDilationValue();
 								if (h > max_height)
 									max_height = h;
 							}
@@ -333,23 +403,23 @@ void WorkerThread::computePositions()
 			}
 		}
 
-		assert(best_x + node->getTop()->getWidth() <= base.getWidth());
-		assert(best_y + node->getTop()->getHeight() <= base.getHeight());
-
-
-        QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
-				QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
-
 		if (max_height > _nodes.getGeometry().z())
 		{
 			emit report(tr("mesh ") + node->getMesh()->getName() + tr(" does not fit."), Console::Error);
 			break;
 		}
+		else
+		{
 
-		emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
-		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
-		node->setPos(newPos);	
-        emit nodePositionModified(i);
+			QVector3D newPos = QVector3D(best_x, best_y, best_z) - node->getMesh()->getMin() +
+					QVector3D(node->getDilationValue(), node->getDilationValue(), node->getDilationValue());
+
+			base.insertAt(best_x, best_y, best_z, *(node->getTop()));
+			node->setPos(newPos);
+
+			emit reportProgress(progress_atom++);
+			emit nodePositionModified(i);
+		}
 	}
 
 	emit report(tr("max height is %1").arg(max_height), Console::Info);
@@ -369,9 +439,10 @@ void WorkerThread::computePositions()
 
 	Image base(_nodes.getGeometry().x(), _nodes.getGeometry().y());
 	base.setAllPixelsTo(0.);
-	double max_height = -INFINITY;
 
-	QAtomicInt progress_atom(0);
+	std::atomic<float> max_height(-INFINITY); // A variable that keeps track of the highest feature to
+	std::atomic<int> progress_atom(0);
+
 	for (size_t i = 0; i < _nodes.numNodes(); i++)
 	{		
 		Node* node = _nodes.getNode(i);
@@ -449,7 +520,7 @@ void WorkerThread::computePositions()
 			break;
 		}
 
-		emit reportProgress(progress_atom.fetchAndAddRelaxed(1));
+		emit reportProgress(progress_atom++);
 		base.insertAt(best_x, best_y, best_z, *(node->getTop()));
 
 		node->setPos(newPos);
@@ -457,4 +528,3 @@ void WorkerThread::computePositions()
 	}
 }
 #endif
-

@@ -9,6 +9,15 @@ class NodeModel : public QAbstractItemModel
 
 public:
 
+	enum ColumnIndex
+	{
+		Name = 0,
+		Position,
+		Dilation,
+		AABBSize,
+		AABBVolume
+	};
+
 	explicit NodeModel(QObject *parent, QVector3D geometry = QVector3D(400., 400., 1000.), unsigned defaultDilationValue = 0);
 	virtual ~NodeModel();
 
@@ -20,6 +29,8 @@ public:
 	QModelIndex index(int row, int column, const QModelIndex & parent = QModelIndex()) const;
 	QModelIndex parent(const QModelIndex &child) const;
 	bool removeRows(int row, int count, const QModelIndex & parent = QModelIndex());
+	void sort(int column, Qt::SortOrder order = Qt::AscendingOrder);
+	bool setData ( const QModelIndex & index, const QVariant & value, int role = Qt::EditRole);
 
 	Node*		getNode(unsigned i) const { return _nodes[i]; }
 	void		setGeometry(QVector3D geometry);
@@ -29,6 +40,7 @@ public:
 	unsigned	getDefaultDilationValue() const { return _defaultDilationValue; }
 	void		setDefaultDilationValue(unsigned defaultDilationValue) { _defaultDilationValue = defaultDilationValue; }
 	double		nodesVolume() const;
+
 
 signals:
 

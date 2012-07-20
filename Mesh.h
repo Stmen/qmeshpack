@@ -38,6 +38,7 @@ public:
 	void		save(QString filename);
     bool        hasNormals() const { return _normals; }
 	double		aabbVolume() const;
+	bool		wasFullyTriangulated() const { return _fullyTriangulated; }
 	static Mesh*	random(unsigned max_vertices = 5);
 
     /// this class is used to iterate over the Triangles of a Mesh.
@@ -71,5 +72,5 @@ private:
 	QVector3D               _max; /// maximum x, y, z in this Mesh
 	QString                 _name;
 	QString					_filename; /// filename, that is the source of this mesh. It is empty if this is an aggregate.
-
+	bool					_fullyTriangulated;
 };

@@ -9,3 +9,10 @@
 //#define
 //#define TEST_IMAGE /* draw test image instead of the logo */
 #define ENABLE_EARLY_TERMINATION
+/*
+ * 1: by biggest volume
+ * 2: by biggest height
+
+  */
+#define MODELSORT 1
+

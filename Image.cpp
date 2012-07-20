@@ -536,6 +536,21 @@ Image* Image::operator -(const ImageRegion& other)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
+Image::ColorType Image::diffSum(const Image &other) const
+{
+	double result = 0;
+	for (quint32 y = 0; y < _height; y++)
+	{
+		for (quint32 x = 0; x < _width; x++)
+		{
+			if (hasPixelAt(x, y) and other.hasPixelAt(x, y))
+				result += at(x, y) - other.at(x, y);
+		}
+	}
+	return result;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 ImageRegion	Image::select(quint32 x, quint32 y, quint32 width, quint32 height)
 {
 	assert(x < width and y < height and width <= _width and height <= _height);
