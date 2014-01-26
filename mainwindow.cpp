@@ -11,8 +11,8 @@
 #include <QDebug>
 #include <QDesktopWidget>
 #include <QImage>
-#include <QtConcurrentRun>
-#include <QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentRun>
+#include <QtConcurrent/QtConcurrentMap>
 #include <QWidgetAction>
 #include <functional> // I love lamdas.
 #include <cmath>
@@ -88,6 +88,7 @@ MainWindow::MainWindow() :
 	// create console
 	_console = new Console(this);
 	QDockWidget* dockWidget = new QDockWidget(tr("Console"), this);	
+    dockWidget->setObjectName("console_dock");
 	dockWidget->setWidget(_console);
 	addDockWidget(Qt::BottomDockWidgetArea, dockWidget);
 
@@ -158,7 +159,7 @@ void MainWindow::createMeshList()
 	_viewMeshFiles->setModel(&_modelMeshFiles);
 	_viewMeshFiles->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
 	_viewMeshFiles->header()->setSortIndicatorShown(true); // optional
-	_viewMeshFiles->header()->setClickable(true);
+    _viewMeshFiles->header()->setSectionsClickable (true);
 	_viewMeshFiles->setSortingEnabled(true);
 	//_viewMeshFiles->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
 	_viewMeshFiles->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -288,6 +289,7 @@ void MainWindow::createMenusAndToolbars()
 
 	//-----------[ toolbars ]----------------
 	_toolMain = addToolBar(tr("Main toolbar"));
+    _toolMain->setObjectName("tool_main");
 	_toolMain->insertAction(0, _actAddFile);
 	_toolMain->insertAction(0, _actSaveResults);
 	_toolMain->insertAction(0, _actProcess);
@@ -474,7 +476,7 @@ void MainWindow::dialogSetDefaultDilation()
 {
 	QString msg = tr("Setting default dilation value ");
 	bool ok;
-	double value = QInputDialog::getInteger(this, msg, tr("dilation value"), _modelMeshFiles.getDefaultDilationValue(),
+    double value = QInputDialog::getInt(this, msg, tr("dilation value"), _modelMeshFiles.getDefaultDilationValue(),
 												 0, 80, 1, &ok);
 	if (ok)
 	{

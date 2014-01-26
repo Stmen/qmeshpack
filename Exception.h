@@ -1,8 +1,10 @@
 #pragma once
-#include <QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentMap>
+#include <QException>
 #include <QString>
 
-class BaseException: public QtConcurrent::Exception
+class BaseException: public QException
 {	
 	public:
 	BaseException() {}

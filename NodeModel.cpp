@@ -1,4 +1,4 @@
-#include <QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentMap>
 #include <functional>
 #include "NodeModel.h"
 #include "util.h"
@@ -137,9 +137,13 @@ QVariant NodeModel::data(const QModelIndex& index, int role) const
 QModelIndex NodeModel::index(int row, int column, const QModelIndex& parent) const
 {
 	if (not parent.isValid())
-		return createIndex(row, column, 0);
+    {
+        return createIndex(row, column);
+    }
 	else
+    {
 		return QModelIndex();
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -194,7 +194,7 @@ void GLView::paintGL()
 		return;
 
 	glMatrixMode(GL_MODELVIEW);
-	glLoadMatrixd(_cam.inverted().constData());
+    glLoadMatrixf(_cam.inverted().constData());
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glEnableClientState(GL_VERTEX_ARRAY);
@@ -214,7 +214,7 @@ void GLView::paintGL()
 
 	if (_single)
 	{
-		glMultMatrixd(_node->getTransform().constData());
+        glMultMatrixf(_node->getTransform().constData());
         _node->getMesh()->draw(_useLighting);
 	}
 	else
@@ -229,7 +229,7 @@ void GLView::paintGL()
             min = vecmin(min, nodePos + node->getMesh()->getMin());
             max = vecmax(max, nodePos + node->getMesh()->getMax());
 
-			glMultMatrixd(node->getTransform().constData());
+            glMultMatrixf(node->getTransform().constData());
 
             _nodes->getNode(i)->getMesh()->draw(_useLighting);
 			glPopMatrix();

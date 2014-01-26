@@ -1,6 +1,6 @@
 #include <QAtomicInt>
 #include <QDateTime>
-#include <QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentMap>
 #include <QCoreApplication>
 #include <cassert>
 #include <functional>

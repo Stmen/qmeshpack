@@ -1,7 +1,8 @@
 #pragma once
 #include <QThread>
 #include <QVariant>
-#include <QtConcurrentMap>
+#include <QFuture>
+//#include <QtConcurrentMap>
 #include <Console.h>
 #include "NodeModel.h"
 

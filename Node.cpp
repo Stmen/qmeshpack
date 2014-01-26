@@ -1,6 +1,6 @@
 #include "Node.h"
 #include <memory>
-#include <QtConcurrentRun>
+#include <QtConcurrent/QtConcurrentRun>
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
